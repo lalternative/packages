@@ -1,0 +1,187 @@
+// Package skalpel provides zero-config observability for Go apps.
+//
+// Usage:
+//
+//	import "github.com/digstack/skalpel/packages/sdk-go"
+//
+//	func main() {
+//	    shutdown, err := skalpel.Init(context.Background(), skalpel.Config{
+//	        Endpoint:    os.Getenv("SKALPEL_ENDPOINT"),
+//	        APIKey:      os.Getenv("SKALPEL_API_KEY"),
+//	        ServiceName: "my-service",
+//	    })
+//	    if err != nil {
+//	        log.Fatal(err)
+//	    }
+//	    defer shutdown(context.Background())
+//	    // ... app code
+//	}
+//
+// Environment variables (used as fallback):
+//
+//	SKALPEL_ENDPOINT — Skalpel backend URL
+//	SKALPEL_API_KEY  — Project API key
+//	SKALPEL_SERVICE  — Service name
+package skalpel
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"runtime"
+	"time"
+
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	"go.opentelemetry.io/otel/metric"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/resource"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	semconv "go.opentelemetry.io/otel/semconv/v1.24.0"
+)
+
+// Config holds the Skalpel SDK configuration.
+type Config struct {
+	Endpoint       string
+	APIKey         string
+	ServiceName    string
+	ServiceVersion string
+	Environment    string
+	// MetricsInterval controls how often metrics are exported (default: 15s).
+	MetricsInterval time.Duration
+}
+
+func (c *Config) withDefaults() {
+	if c.Endpoint == "" {
+		c.Endpoint = os.Getenv("SKALPEL_ENDPOINT")
+	}
+	if c.APIKey == "" {
+		c.APIKey = os.Getenv("SKALPEL_API_KEY")
+	}
+	if c.ServiceName == "" {
+		c.ServiceName = os.Getenv("SKALPEL_SERVICE")
+		if c.ServiceName == "" {
+			c.ServiceName = "unknown"
+		}
+	}
+	if c.ServiceVersion == "" {
+		c.ServiceVersion = "0.0.0"
+	}
+	if c.Environment == "" {
+		c.Environment = "development"
+	}
+	if c.MetricsInterval == 0 {
+		c.MetricsInterval = 15 * time.Second
+	}
+}
+
+// Init initializes the Skalpel SDK and returns a shutdown function.
+func Init(ctx context.Context, cfg Config) (func(context.Context) error, error) {
+	cfg.withDefaults()
+
+	if cfg.Endpoint == "" || cfg.APIKey == "" {
+		return nil, fmt.Errorf("skalpel: SKALPEL_ENDPOINT and SKALPEL_API_KEY are required")
+	}
+
+	headers := map[string]string{"x-api-key": cfg.APIKey}
+
+	res, err := resource.New(ctx,
+		resource.WithAttributes(
+			semconv.ServiceName(cfg.ServiceName),
+			semconv.ServiceVersion(cfg.ServiceVersion),
+			attribute.String("deployment.environment", cfg.Environment),
+		),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("skalpel: resource: %w", err)
+	}
+
+	// Traces
+	traceExp, err := otlptracehttp.New(ctx,
+		otlptracehttp.WithEndpointURL(cfg.Endpoint+"/v1/traces"),
+		otlptracehttp.WithHeaders(headers),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("skalpel: trace exporter: %w", err)
+	}
+	tp := sdktrace.NewTracerProvider(
+		sdktrace.WithBatcher(traceExp),
+		sdktrace.WithResource(res),
+	)
+	otel.SetTracerProvider(tp)
+
+	// Metrics
+	metricExp, err := otlpmetrichttp.New(ctx,
+		otlpmetrichttp.WithEndpointURL(cfg.Endpoint+"/v1/metrics"),
+		otlpmetrichttp.WithHeaders(headers),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("skalpel: metric exporter: %w", err)
+	}
+	mp := sdkmetric.NewMeterProvider(
+		sdkmetric.WithReader(sdkmetric.NewPeriodicReader(metricExp,
+			sdkmetric.WithInterval(cfg.MetricsInterval),
+		)),
+		sdkmetric.WithResource(res),
+	)
+	otel.SetMeterProvider(mp)
+
+	// Register runtime metrics
+	stopMetrics := registerRuntimeMetrics(mp, cfg.ServiceName)
+
+	fmt.Printf("[skalpel] initialized — service=%s endpoint=%s\n", cfg.ServiceName, cfg.Endpoint)
+
+	shutdown := func(ctx context.Context) error {
+		stopMetrics()
+		tpErr := tp.Shutdown(ctx)
+		mpErr := mp.Shutdown(ctx)
+		if tpErr != nil {
+			return tpErr
+		}
+		return mpErr
+	}
+
+	return shutdown, nil
+}
+
+func registerRuntimeMetrics(mp *sdkmetric.MeterProvider, serviceName string) func() {
+	meter := mp.Meter(serviceName)
+	done := make(chan struct{})
+
+	// CPU utilization
+	cpuGauge, _ := meter.Float64ObservableGauge("process.cpu.utilization",
+		metric.WithDescription("Process CPU utilization (0-1)"),
+	)
+
+	// Memory heap
+	heapGauge, _ := meter.Float64ObservableGauge("process.runtime.go.mem.heap_alloc",
+		metric.WithDescription("Go heap allocation in bytes"),
+		metric.WithUnit("By"),
+	)
+
+	// Memory RSS (sys)
+	sysGauge, _ := meter.Float64ObservableGauge("process.memory.rss",
+		metric.WithDescription("Total memory from OS in bytes"),
+		metric.WithUnit("By"),
+	)
+
+	// Goroutines
+	goroutineGauge, _ := meter.Float64ObservableGauge("process.runtime.go.goroutines",
+		metric.WithDescription("Number of goroutines"),
+	)
+
+	meter.RegisterCallback(func(_ context.Context, o metric.Observer) error {
+		var m runtime.MemStats
+		runtime.ReadMemStats(&m)
+		o.ObserveFloat64(heapGauge, float64(m.HeapAlloc))
+		o.ObserveFloat64(sysGauge, float64(m.Sys))
+		o.ObserveFloat64(goroutineGauge, float64(runtime.NumGoroutine()))
+		// CPU: approximation via GC CPU fraction
+		o.ObserveFloat64(cpuGauge, m.GCCPUFraction)
+		return nil
+	}, cpuGauge, heapGauge, sysGauge, goroutineGauge)
+
+	return func() { close(done) }
+}
