@@ -11,12 +11,13 @@ import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http';
 import { resourceFromAttributes } from '@opentelemetry/resources';
 
 import { patchConsole } from './logs.js';
+import type { BrowserLogLevel } from './logs.js';
 import { captureGlobalErrors } from './errors.js';
 import { startBrowserMetrics } from './metrics.js';
 
 export interface SkalpelBrowserConfig {
   endpoint: string;
-  apiKey: string;
+  apiKey?: string;
   serviceName?: string;
   serviceVersion?: string;
   environment?: string;
@@ -24,6 +25,8 @@ export interface SkalpelBrowserConfig {
   metricsInterval?: number;
   /** Disable console patching for log capture (default: false) */
   disableConsoleLogs?: boolean;
+  /** Minimum captured console level (default: "warn") */
+  logLevel?: BrowserLogLevel;
   /** Disable metrics collection (default: false) */
   disableMetrics?: boolean;
 }
@@ -49,10 +52,11 @@ export function init(config: SkalpelBrowserConfig): void {
     environment = 'production',
     metricsInterval = 15_000,
     disableConsoleLogs = false,
+    logLevel = 'warn',
     disableMetrics = false,
   } = config;
 
-  const headers = { 'x-api-key': apiKey };
+  const headers = apiKey ? { 'x-api-key': apiKey } : undefined;
 
   const resource = resourceFromAttributes({
     'service.name': serviceName,
@@ -85,8 +89,8 @@ export function init(config: SkalpelBrowserConfig): void {
 
   const logger = logs.getLogger(serviceName, serviceVersion);
 
-  if (!disableConsoleLogs) {
-    patchConsole(logger);
+  if (!disableConsoleLogs && logLevel !== 'off') {
+    patchConsole(logger, logLevel);
   }
 
   // Global error capture
