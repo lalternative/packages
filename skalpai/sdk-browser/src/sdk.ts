@@ -15,19 +15,29 @@ import type { BrowserLogLevel } from './logs.js';
 import { captureGlobalErrors } from './errors.js';
 import { startBrowserMetrics } from './metrics.js';
 
+const EXPORTER_TIMEOUT_MS = 10_000;
+const LOG_BATCH_DELAY_MS = 30_000;
+const LOG_MAX_QUEUE_SIZE = 256;
+const LOG_MAX_BATCH_SIZE = 32;
+const SPAN_BATCH_DELAY_MS = 30_000;
+const SPAN_MAX_QUEUE_SIZE = 256;
+const SPAN_MAX_BATCH_SIZE = 32;
+const DEFAULT_METRICS_INTERVAL_MS = 60_000;
+const METRICS_EXPORT_TIMEOUT_MS = 30_000;
+
 export interface SkalpelBrowserConfig {
   endpoint: string;
   apiKey?: string;
   serviceName?: string;
   serviceVersion?: string;
   environment?: string;
-  /** Metrics export interval in ms (default: 15000) */
+  /** Metrics export interval in ms (default: 60000) */
   metricsInterval?: number;
   /** Disable console patching for log capture (default: false) */
   disableConsoleLogs?: boolean;
   /** Minimum captured console level (default: "warn") */
   logLevel?: BrowserLogLevel;
-  /** Disable metrics collection (default: false) */
+  /** Disable metrics collection (default: true) */
   disableMetrics?: boolean;
 }
 
@@ -50,10 +60,10 @@ export function init(config: SkalpelBrowserConfig): void {
     serviceName = 'unknown',
     serviceVersion = '0.0.0',
     environment = 'production',
-    metricsInterval = 15_000,
+    metricsInterval = DEFAULT_METRICS_INTERVAL_MS,
     disableConsoleLogs = false,
     logLevel = 'warn',
-    disableMetrics = false,
+    disableMetrics = true,
   } = config;
 
   const headers = apiKey ? { 'x-api-key': apiKey } : undefined;
@@ -70,20 +80,36 @@ export function init(config: SkalpelBrowserConfig): void {
   const traceExporter = new OTLPTraceExporter({
     url: `${endpoint}/v1/traces`,
     headers,
+    timeoutMillis: EXPORTER_TIMEOUT_MS,
   });
   tracerProvider = new BasicTracerProvider({
     resource,
-    spanProcessors: [new BatchSpanProcessor(traceExporter)],
+    spanProcessors: [
+      new BatchSpanProcessor(traceExporter, {
+        scheduledDelayMillis: SPAN_BATCH_DELAY_MS,
+        maxQueueSize: SPAN_MAX_QUEUE_SIZE,
+        maxExportBatchSize: SPAN_MAX_BATCH_SIZE,
+        exportTimeoutMillis: EXPORTER_TIMEOUT_MS,
+      }),
+    ],
   });
 
   // Logs
   const logExporter = new OTLPLogExporter({
     url: `${endpoint}/v1/logs`,
     headers,
+    timeoutMillis: EXPORTER_TIMEOUT_MS,
   });
   loggerProvider = new LoggerProvider({
     resource,
-    processors: [new BatchLogRecordProcessor(logExporter)],
+    processors: [
+      new BatchLogRecordProcessor(logExporter, {
+        scheduledDelayMillis: LOG_BATCH_DELAY_MS,
+        maxQueueSize: LOG_MAX_QUEUE_SIZE,
+        maxExportBatchSize: LOG_MAX_BATCH_SIZE,
+        exportTimeoutMillis: EXPORTER_TIMEOUT_MS,
+      }),
+    ],
   });
   logs.setGlobalLoggerProvider(loggerProvider);
 
@@ -101,6 +127,7 @@ export function init(config: SkalpelBrowserConfig): void {
     const metricExporter = new OTLPMetricExporter({
       url: `${endpoint}/v1/metrics`,
       headers,
+      timeoutMillis: EXPORTER_TIMEOUT_MS,
     });
     meterProvider = new MeterProvider({
       resource,
@@ -108,6 +135,7 @@ export function init(config: SkalpelBrowserConfig): void {
         new PeriodicExportingMetricReader({
           exporter: metricExporter,
           exportIntervalMillis: metricsInterval,
+          exportTimeoutMillis: METRICS_EXPORT_TIMEOUT_MS,
         }),
       ],
     });
