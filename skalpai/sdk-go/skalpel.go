@@ -33,9 +33,12 @@ import (
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	otellog "go.opentelemetry.io/otel/log/global"
 	"go.opentelemetry.io/otel/metric"
+	sdklog "go.opentelemetry.io/otel/sdk/log"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -128,6 +131,20 @@ func Init(ctx context.Context, cfg Config) (func(context.Context) error, error) 
 	)
 	otel.SetMeterProvider(mp)
 
+	// Logs
+	logExp, err := otlploghttp.New(ctx,
+		otlploghttp.WithEndpointURL(cfg.Endpoint+"/v1/logs"),
+		otlploghttp.WithHeaders(headers),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("skalpel: log exporter: %w", err)
+	}
+	lp := sdklog.NewLoggerProvider(
+		sdklog.WithProcessor(sdklog.NewBatchProcessor(logExp)),
+		sdklog.WithResource(res),
+	)
+	otellog.SetLoggerProvider(lp)
+
 	// Register runtime metrics
 	stopMetrics := registerRuntimeMetrics(mp, cfg.ServiceName)
 
@@ -137,10 +154,14 @@ func Init(ctx context.Context, cfg Config) (func(context.Context) error, error) 
 		stopMetrics()
 		tpErr := tp.Shutdown(ctx)
 		mpErr := mp.Shutdown(ctx)
+		lpErr := lp.Shutdown(ctx)
 		if tpErr != nil {
 			return tpErr
 		}
-		return mpErr
+		if mpErr != nil {
+			return mpErr
+		}
+		return lpErr
 	}
 
 	return shutdown, nil
