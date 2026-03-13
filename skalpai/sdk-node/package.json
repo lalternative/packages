@@ -1,5 +1,5 @@
 {
-  "name": "@skalpel/sdk-node",
+  "name": "@digstack/skalpel-sdk-node",
   "version": "0.1.0",
   "description": "Skalpel observability SDK for Node.js — auto-instruments traces, logs, and metrics",
   "type": "module",
@@ -33,5 +33,13 @@
     "typescript": "^5.7.0"
   },
   "keywords": ["skalpel", "observability", "opentelemetry", "tracing", "metrics", "logging"],
-  "license": "MIT"
+  "license": "MIT",
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/digstack/skalpel.git",
+    "directory": "packages/sdk-node"
+  }
 }
