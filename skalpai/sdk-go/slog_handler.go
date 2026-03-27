@@ -1,4 +1,4 @@
-package skalpel
+package skalpai
 
 import (
 	"context"

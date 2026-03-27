@@ -1,13 +1,13 @@
-// Package skalpel provides zero-config observability for Go apps.
+// Package skalpai provides zero-config observability for Go apps.
 //
 // Usage:
 //
-//	import "github.com/digstack/skalpel/packages/sdk-go"
+//	import "github.com/digstack/skalpai/packages/sdk-go"
 //
 //	func main() {
-//	    shutdown, err := skalpel.Init(context.Background(), skalpel.Config{
-//	        Endpoint:    os.Getenv("SKALPEL_ENDPOINT"),
-//	        APIKey:      os.Getenv("SKALPEL_API_KEY"),
+//	    shutdown, err := skalpai.Init(context.Background(), skalpai.Config{
+//	        Endpoint:    os.Getenv("SKALPAI_ENDPOINT"),
+//	        APIKey:      os.Getenv("SKALPAI_API_KEY"),
 //	        ServiceName: "my-service",
 //	    })
 //	    if err != nil {
@@ -19,10 +19,10 @@
 //
 // Environment variables (used as fallback):
 //
-//	SKALPEL_ENDPOINT — Skalpel backend URL
-//	SKALPEL_API_KEY  — Project API key
-//	SKALPEL_SERVICE  — Service name
-package skalpel
+//	SKALPAI_ENDPOINT — Skalpai backend URL
+//	SKALPAI_API_KEY  — Project API key
+//	SKALPAI_SERVICE  — Service name
+package skalpai
 
 import (
 	"context"
@@ -46,7 +46,7 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.24.0"
 )
 
-// Config holds the Skalpel SDK configuration.
+// Config holds the Skalpai SDK configuration.
 type Config struct {
 	Endpoint       string
 	APIKey         string
@@ -59,13 +59,13 @@ type Config struct {
 
 func (c *Config) withDefaults() {
 	if c.Endpoint == "" {
-		c.Endpoint = os.Getenv("SKALPEL_ENDPOINT")
+		c.Endpoint = os.Getenv("SKALPAI_ENDPOINT")
 	}
 	if c.APIKey == "" {
-		c.APIKey = os.Getenv("SKALPEL_API_KEY")
+		c.APIKey = os.Getenv("SKALPAI_API_KEY")
 	}
 	if c.ServiceName == "" {
-		c.ServiceName = os.Getenv("SKALPEL_SERVICE")
+		c.ServiceName = os.Getenv("SKALPAI_SERVICE")
 		if c.ServiceName == "" {
 			c.ServiceName = "unknown"
 		}
@@ -81,12 +81,12 @@ func (c *Config) withDefaults() {
 	}
 }
 
-// Init initializes the Skalpel SDK and returns a shutdown function.
+// Init initializes the Skalpai SDK and returns a shutdown function.
 func Init(ctx context.Context, cfg Config) (func(context.Context) error, error) {
 	cfg.withDefaults()
 
 	if cfg.Endpoint == "" || cfg.APIKey == "" {
-		return nil, fmt.Errorf("skalpel: SKALPEL_ENDPOINT and SKALPEL_API_KEY are required")
+		return nil, fmt.Errorf("skalpai: SKALPAI_ENDPOINT and SKALPAI_API_KEY are required")
 	}
 
 	headers := map[string]string{"x-api-key": cfg.APIKey}
@@ -99,7 +99,7 @@ func Init(ctx context.Context, cfg Config) (func(context.Context) error, error) 
 		),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("skalpel: resource: %w", err)
+		return nil, fmt.Errorf("skalpai: resource: %w", err)
 	}
 
 	// Traces
@@ -108,7 +108,7 @@ func Init(ctx context.Context, cfg Config) (func(context.Context) error, error) 
 		otlptracehttp.WithHeaders(headers),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("skalpel: trace exporter: %w", err)
+		return nil, fmt.Errorf("skalpai: trace exporter: %w", err)
 	}
 	tp := sdktrace.NewTracerProvider(
 		sdktrace.WithBatcher(traceExp),
@@ -126,7 +126,7 @@ func Init(ctx context.Context, cfg Config) (func(context.Context) error, error) 
 		otlpmetrichttp.WithHeaders(headers),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("skalpel: metric exporter: %w", err)
+		return nil, fmt.Errorf("skalpai: metric exporter: %w", err)
 	}
 	mp := sdkmetric.NewMeterProvider(
 		sdkmetric.WithReader(sdkmetric.NewPeriodicReader(metricExp,
@@ -142,7 +142,7 @@ func Init(ctx context.Context, cfg Config) (func(context.Context) error, error) 
 		otlploghttp.WithHeaders(headers),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("skalpel: log exporter: %w", err)
+		return nil, fmt.Errorf("skalpai: log exporter: %w", err)
 	}
 	lp := sdklog.NewLoggerProvider(
 		sdklog.WithProcessor(sdklog.NewBatchProcessor(logExp)),
@@ -153,7 +153,7 @@ func Init(ctx context.Context, cfg Config) (func(context.Context) error, error) 
 	// Register runtime metrics
 	stopMetrics := registerRuntimeMetrics(mp, cfg.ServiceName)
 
-	fmt.Printf("[skalpel] initialized — service=%s endpoint=%s\n", cfg.ServiceName, cfg.Endpoint)
+	fmt.Printf("[skalpai] initialized — service=%s endpoint=%s\n", cfg.ServiceName, cfg.Endpoint)
 
 	shutdown := func(ctx context.Context) error {
 		stopMetrics()
