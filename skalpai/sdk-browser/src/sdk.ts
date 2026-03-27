@@ -25,7 +25,7 @@ const SPAN_MAX_BATCH_SIZE = 32;
 const DEFAULT_METRICS_INTERVAL_MS = 60_000;
 const METRICS_EXPORT_TIMEOUT_MS = 30_000;
 
-export interface SkalpelBrowserConfig {
+export interface SkalpaiConfig {
   endpoint: string;
   apiKey?: string;
   serviceName?: string;
@@ -48,9 +48,9 @@ let cleanupErrors: (() => void) | null = null;
 let cleanupMetrics: (() => void) | null = null;
 let initialized = false;
 
-export function init(config: SkalpelBrowserConfig): void {
+export function init(config: SkalpaiConfig): void {
   if (initialized) {
-    console.warn('[skalpel] already initialized');
+    console.warn('[skalpai] already initialized');
     return;
   }
 
@@ -73,7 +73,7 @@ export function init(config: SkalpelBrowserConfig): void {
     'service.version': serviceVersion,
     'deployment.environment': environment,
     'telemetry.sdk.language': 'webjs',
-    'telemetry.sdk.name': '@skalpel/sdk-browser',
+    'telemetry.sdk.name': '@skalpai/sdk-browser',
   });
 
   // Traces
@@ -151,7 +151,7 @@ export function init(config: SkalpelBrowserConfig): void {
   window.addEventListener('pagehide', flush);
 
   initialized = true;
-  console.log(`[skalpel] initialized — service=${serviceName} endpoint=${endpoint}`);
+  console.log(`[skalpai] initialized — service=${serviceName} endpoint=${endpoint}`);
 }
 
 function flush(): void {

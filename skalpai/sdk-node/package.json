@@ -1,7 +1,7 @@
 {
-  "name": "@digstack/skalpel-sdk-node",
-  "version": "0.1.0",
-  "description": "Skalpel observability SDK for Node.js — auto-instruments traces, logs, and metrics",
+  "name": "@digstack/skalpai-sdk-node",
+  "version": "0.2.0",
+  "description": "Skalpai observability SDK for Node.js — auto-instruments traces, logs, and metrics",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -32,14 +32,14 @@
     "tsup": "^8.0.0",
     "typescript": "^5.7.0"
   },
-  "keywords": ["skalpel", "observability", "opentelemetry", "tracing", "metrics", "logging"],
+  "keywords": ["skalpai", "observability", "opentelemetry", "tracing", "metrics", "logging"],
   "license": "MIT",
   "publishConfig": {
     "registry": "https://npm.pkg.github.com"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/digstack/skalpel.git",
+    "url": "https://github.com/digstack/skalpai.git",
     "directory": "packages/sdk-node"
   }
 }

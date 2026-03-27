@@ -1,7 +1,7 @@
 {
-  "name": "@digstack/skalpel-sdk-browser",
-  "version": "0.1.0",
-  "description": "Skalpel observability SDK for browsers — captures logs, errors, and performance metrics",
+  "name": "@digstack/skalpai-sdk-browser",
+  "version": "0.2.0",
+  "description": "Skalpai observability SDK for browsers — captures logs, errors, and performance metrics",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -31,14 +31,14 @@
     "tsup": "^8.0.0",
     "typescript": "^5.7.0"
   },
-  "keywords": ["skalpel", "observability", "opentelemetry", "browser", "logging"],
+  "keywords": ["skalpai", "observability", "opentelemetry", "browser", "logging"],
   "license": "MIT",
   "publishConfig": {
     "registry": "https://npm.pkg.github.com"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/digstack/skalpel.git",
+    "url": "https://github.com/digstack/skalpai.git",
     "directory": "packages/sdk-browser"
   }
 }

@@ -14,7 +14,7 @@ import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http';
 import { patchConsole } from './logs.js';
 import { startRuntimeMetrics } from './metrics.js';
 
-export interface SkalpelConfig {
+export interface SkalpaiConfig {
   endpoint: string;
   apiKey: string;
   serviceName?: string;
@@ -33,9 +33,9 @@ let loggerProvider: LoggerProvider | null = null;
 let meterProvider: MeterProvider | null = null;
 let metricsCleanup: (() => void) | null = null;
 
-export function init(config: SkalpelConfig): void {
+export function init(config: SkalpaiConfig): void {
   if (sdk) {
-    console.warn('[skalpel] already initialized');
+    console.warn('[skalpai] already initialized');
     return;
   }
 
@@ -110,7 +110,7 @@ export function init(config: SkalpelConfig): void {
   process.on('SIGTERM', onSignal);
   process.on('SIGINT', onSignal);
 
-  console.log(`[skalpel] initialized — service=${serviceName} endpoint=${endpoint}`);
+  console.log(`[skalpai] initialized — service=${serviceName} endpoint=${endpoint}`);
 }
 
 export async function shutdown(): Promise<void> {
