@@ -11,7 +11,7 @@
  *   SKALPAI_API_URL   — Skalpai backend URL (e.g. http://localhost:4100)
  *   SKALPAI_ENDPOINT  — Legacy alias for SKALPAI_API_URL
  *   SKALPAI_API_KEY   — Project API key
- *   SKALPAI_SERVICE   — Service name (default: process.env.npm_package_name or "unknown")
+ *   SKALPAI_SERVICE   — Service name (default: OTEL_SERVICE_NAME, npm_package_name, or "unknown")
  *   SKALPAI_ENABLED   — Set to "false" to disable (default: "true")
  */
 
@@ -29,7 +29,11 @@ if (process.env.SKALPAI_AUTO_INIT !== 'false') {
     init({
       endpoint,
       apiKey,
-      serviceName: process.env.SKALPAI_SERVICE || process.env.npm_package_name || 'unknown',
+      serviceName:
+        process.env.SKALPAI_SERVICE ||
+        process.env.OTEL_SERVICE_NAME ||
+        process.env.npm_package_name ||
+        'unknown',
     });
   } else {
     console.warn('[skalpai] disabled: missing SKALPAI_API_URL/SKALPAI_ENDPOINT or SKALPAI_API_KEY');

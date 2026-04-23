@@ -39,10 +39,16 @@ export function init(config: SkalpaiConfig): void {
     return;
   }
 
+  const defaultServiceName =
+    process.env.SKALPAI_SERVICE ||
+    process.env.OTEL_SERVICE_NAME ||
+    process.env.npm_package_name ||
+    'unknown';
+
   const {
     endpoint,
     apiKey,
-    serviceName = 'unknown',
+    serviceName = defaultServiceName,
     serviceVersion = '0.0.0',
     environment = process.env.NODE_ENV || 'development',
     metricsInterval = 15_000,

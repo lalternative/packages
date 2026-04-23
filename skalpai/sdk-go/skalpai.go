@@ -22,6 +22,7 @@
 //	SKALPAI_ENDPOINT — Skalpai backend URL
 //	SKALPAI_API_KEY  — Project API key
 //	SKALPAI_SERVICE  — Service name
+//	OTEL_SERVICE_NAME — Service name fallback
 package skalpai
 
 import (
@@ -33,12 +34,12 @@ import (
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	otellog "go.opentelemetry.io/otel/log/global"
 	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/propagation"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
@@ -66,6 +67,9 @@ func (c *Config) withDefaults() {
 	}
 	if c.ServiceName == "" {
 		c.ServiceName = os.Getenv("SKALPAI_SERVICE")
+		if c.ServiceName == "" {
+			c.ServiceName = os.Getenv("OTEL_SERVICE_NAME")
+		}
 		if c.ServiceName == "" {
 			c.ServiceName = "unknown"
 		}
