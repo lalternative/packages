@@ -311,24 +311,32 @@ export class SkalpaiFeedbackElement extends HTMLElementCtor {
     if (this.capturing) return;
     this.capturing = true;
     this.render();
-    const prevDisplay = this.style.display;
-    this.style.display = 'none';
+    const prevVisibility = this.style.visibility;
+    this.style.visibility = 'hidden';
+    const restore = (): void => {
+      if (prevVisibility) this.style.visibility = prevVisibility;
+      else this.style.removeProperty('visibility');
+    };
     try {
       const html2canvasMod = await import('html2canvas-pro');
       const html2canvas = html2canvasMod.default;
       await new Promise((r) => requestAnimationFrame(() => r(null)));
-      const canvas = await html2canvas(document.body, {
+      const capturePromise = html2canvas(document.body, {
         backgroundColor: null,
         useCORS: true,
         logging: false,
         scale: Math.min(window.devicePixelRatio || 1, 2),
       });
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('capture timeout')), 15000);
+      });
+      const canvas = await Promise.race([capturePromise, timeoutPromise]);
       this.screenshot = canvas.toDataURL('image/png');
     } catch (err) {
       this.errorMsg = err instanceof Error ? err.message : 'capture failed';
       this.state = 'error';
     } finally {
-      this.style.display = prevDisplay;
+      restore();
       this.capturing = false;
       this.render();
     }
