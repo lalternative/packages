@@ -17,6 +17,8 @@
 
 export { init, shutdown } from './sdk.js';
 export type { SkalpaiConfig } from './sdk.js';
+export { wrapHttpHandler } from './http.js';
+export type { HTTPMiddlewareConfig, NodeHTTPRequestHandler } from './http.js';
 
 // Auto-initialize unless explicitly disabled
 import { init } from './sdk.js';

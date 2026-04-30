@@ -1,4 +1,5 @@
 import { NodeSDK } from '@opentelemetry/sdk-node';
+import { metrics } from '@opentelemetry/api';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
 import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-base';
 import { resourceFromAttributes } from '@opentelemetry/resources';
@@ -101,6 +102,7 @@ export function init(config: SkalpaiConfig): void {
         }),
       ],
     });
+    metrics.setGlobalMeterProvider(meterProvider);
     metricsCleanup = startRuntimeMetrics(meterProvider, serviceName);
   }
 
