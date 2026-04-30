@@ -1,0 +1,39 @@
+{
+  "name": "@digstack/skalpai-feedback-widget",
+  "version": "0.1.0",
+  "description": "Skalpai feedback widget — framework-agnostic Web Component",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./auto": {
+      "import": "./dist/auto.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch"
+  },
+  "dependencies": {
+    "html2canvas-pro": "^1.5.8"
+  },
+  "devDependencies": {
+    "tsup": "^8.0.0",
+    "typescript": "^5.7.0"
+  },
+  "keywords": ["skalpai", "feedback", "widget", "web-component"],
+  "license": "MIT",
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/digstack/skalpai.git",
+    "directory": "packages/sdk-feedback-widget"
+  }
+}
