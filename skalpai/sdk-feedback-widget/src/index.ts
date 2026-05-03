@@ -13,6 +13,8 @@ type Labels = {
   capture: string;
   capturing: string;
   remove_screenshot: string;
+  attach: string;
+  remove_attachment: string;
 };
 
 const DEFAULT_LABELS: Labels = {
@@ -28,7 +30,12 @@ const DEFAULT_LABELS: Labels = {
   capture: 'Capturer l’écran',
   capturing: 'Capture…',
   remove_screenshot: 'Retirer la capture',
+  attach: 'Joindre une image',
+  remove_attachment: 'Retirer la pièce jointe',
 };
+
+const MAX_ATTACHMENTS = 5;
+const ALLOWED_MIME = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
 
 const STYLES = `
   :host {
@@ -124,6 +131,7 @@ const STYLES = `
     border: 1px solid var(--skalpai-border); border-radius: 8px; overflow: hidden;
   }
   .preview img { display: block; width: 64px; height: 48px; object-fit: cover; }
+  .attach-list { display: flex; flex-wrap: wrap; gap: 6px; }
   .preview-remove {
     position: absolute; top: 2px; right: 2px;
     width: 18px; height: 18px; border-radius: 50%;
@@ -167,7 +175,7 @@ export class SkalpaiFeedbackElement extends HTMLElementCtor {
   private message = '';
   private state: 'idle' | 'loading' | 'sent' | 'error' = 'idle';
   private errorMsg = '';
-  private screenshot: string | null = null;
+  private attachments: Array<{ blob: Blob; previewUrl: string; name: string }> = [];
   private capturing = false;
   private themeObserver: MutationObserver | null = null;
   private mqlDark: MediaQueryList | null = null;
@@ -331,7 +339,11 @@ export class SkalpaiFeedbackElement extends HTMLElementCtor {
         setTimeout(() => reject(new Error('capture timeout')), 15000);
       });
       const canvas = await Promise.race([capturePromise, timeoutPromise]);
-      this.screenshot = canvas.toDataURL('image/png');
+      const blob = await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob((b) => resolve(b), 'image/png'),
+      );
+      if (!blob) throw new Error('capture failed');
+      this.addAttachment(blob, 'screenshot.png');
     } catch (err) {
       this.errorMsg = err instanceof Error ? err.message : 'capture failed';
       this.state = 'error';
@@ -340,6 +352,41 @@ export class SkalpaiFeedbackElement extends HTMLElementCtor {
       this.capturing = false;
       this.render();
     }
+  }
+
+  private addAttachment(blob: Blob, name: string): void {
+    if (this.attachments.length >= MAX_ATTACHMENTS) {
+      this.errorMsg = `Max ${MAX_ATTACHMENTS} pieces jointes`;
+      this.state = 'error';
+      return;
+    }
+    if (!ALLOWED_MIME.includes(blob.type)) {
+      this.errorMsg = 'Type de fichier non supporté';
+      this.state = 'error';
+      return;
+    }
+    const previewUrl = URL.createObjectURL(blob);
+    this.attachments.push({ blob, previewUrl, name });
+  }
+
+  private removeAttachment(index: number): void {
+    const att = this.attachments[index];
+    if (att) URL.revokeObjectURL(att.previewUrl);
+    this.attachments.splice(index, 1);
+    this.render();
+  }
+
+  private clearAttachments(): void {
+    for (const a of this.attachments) URL.revokeObjectURL(a.previewUrl);
+    this.attachments = [];
+  }
+
+  private onFilesPicked(files: FileList | null): void {
+    if (!files) return;
+    for (const f of Array.from(files)) {
+      this.addAttachment(f, f.name);
+    }
+    this.render();
   }
 
   private async submit(): Promise<void> {
@@ -353,26 +400,25 @@ export class SkalpaiFeedbackElement extends HTMLElementCtor {
     this.render();
     try {
       const url = `${this.endpoint.replace(/\/$/, '')}/api/projects/${encodeURIComponent(this.projectId)}/feedback`;
+      const form = new FormData();
+      form.append('type', this.type);
+      form.append('message', this.message);
+      form.append('url', location.pathname);
+      form.append('device', window.innerWidth < 768 ? 'mobile' : 'desktop');
+      form.append('user_identifier', this.userIdentifier);
+      for (const a of this.attachments) {
+        form.append('attachments', a.blob, a.name);
+      }
       const res = await fetch(url, {
         method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          ...(this.apiKey ? { 'x-api-key': this.apiKey } : {}),
-        },
-        body: JSON.stringify({
-          type: this.type,
-          message: this.message,
-          url: location.pathname,
-          device: window.innerWidth < 768 ? 'mobile' : 'desktop',
-          user_identifier: this.userIdentifier,
-          ...(this.screenshot ? { screenshot: this.screenshot } : {}),
-        }),
+        headers: this.apiKey ? { 'x-api-key': this.apiKey } : {},
+        body: form,
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       this.state = 'sent';
       this.message = '';
       this.type = 'other';
-      this.screenshot = null;
+      this.clearAttachments();
       this.render();
       this.dispatchEvent(new CustomEvent('skalpai-feedback-sent'));
       setTimeout(() => {
@@ -425,15 +471,26 @@ export class SkalpaiFeedbackElement extends HTMLElementCtor {
                   <span aria-hidden="true">📷</span>
                   <span>${this.capturing ? L.capturing : L.capture}</span>
                 </button>
-                ${
-                  this.screenshot
-                    ? `<div class="preview">
-                         <img src="${this.screenshot}" alt="screenshot preview" />
-                         <button class="preview-remove" type="button" aria-label="${L.remove_screenshot}">×</button>
-                       </div>`
-                    : ''
-                }
+                <button class="capture-btn attach-btn" type="button" aria-label="${L.attach}" ${this.attachments.length >= MAX_ATTACHMENTS ? 'disabled' : ''}>
+                  <span aria-hidden="true">📎</span>
+                  <span>${L.attach}</span>
+                </button>
+                <input class="file-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden />
               </div>
+              ${
+                this.attachments.length
+                  ? `<div class="attach-list">
+                      ${this.attachments
+                        .map(
+                          (a, i) => `<div class="preview">
+                            <img src="${a.previewUrl}" alt="attachment ${i + 1}" />
+                            <button class="preview-remove" type="button" data-index="${i}" aria-label="${L.remove_attachment}">×</button>
+                          </div>`,
+                        )
+                        .join('')}
+                    </div>`
+                  : ''
+              }
               <div class="meta">${device} · ${escapeHtml(location.pathname)}</div>
               <button class="submit" type="submit" ${
                 this.state === 'loading' || !this.message.trim() ? 'disabled' : ''
@@ -476,12 +533,25 @@ export class SkalpaiFeedbackElement extends HTMLElementCtor {
       e.preventDefault();
       void this.submit();
     });
-    this.root.querySelector('.capture-btn')?.addEventListener('click', () => {
-      void this.captureScreenshot();
+    this.root
+      .querySelector<HTMLButtonElement>('.capture-btn:not(.attach-btn)')
+      ?.addEventListener('click', () => {
+        void this.captureScreenshot();
+      });
+    const fileInput = this.root.querySelector<HTMLInputElement>('.file-input');
+    this.root.querySelector<HTMLButtonElement>('.attach-btn')?.addEventListener('click', () => {
+      fileInput?.click();
     });
-    this.root.querySelector('.preview-remove')?.addEventListener('click', () => {
-      this.screenshot = null;
-      this.render();
+    fileInput?.addEventListener('change', (e) => {
+      const target = e.target as HTMLInputElement;
+      this.onFilesPicked(target.files);
+      target.value = '';
+    });
+    this.root.querySelectorAll<HTMLButtonElement>('.preview-remove').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const i = Number(btn.dataset.index);
+        if (!Number.isNaN(i)) this.removeAttachment(i);
+      });
     });
   }
 }
