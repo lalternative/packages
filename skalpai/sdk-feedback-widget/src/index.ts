@@ -36,6 +36,13 @@ const DEFAULT_LABELS: Labels = {
 
 const MAX_ATTACHMENTS = 5;
 const ALLOWED_MIME = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
+// Per-attachment cap matches the server default (ATTACHMENT_MAX_BYTES, 5 MiB).
+const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
+// Compression target for screenshots and oversized images.
+const COMPRESS_MAX_DIMENSION = 1920;
+const COMPRESS_QUALITY = 0.85;
+// Threshold above which a user-picked image is recompressed to fit the cap.
+const COMPRESS_THRESHOLD_BYTES = 1_500_000;
 
 const STYLES = `
   :host {
@@ -315,6 +322,63 @@ export class SkalpaiFeedbackElement extends HTMLElementCtor {
     }
   };
 
+  private async compressImage(
+    source: Blob | HTMLCanvasElement,
+    mime: 'image/jpeg' | 'image/webp' = 'image/jpeg',
+    quality: number = COMPRESS_QUALITY,
+    maxDim: number = COMPRESS_MAX_DIMENSION,
+  ): Promise<Blob | null> {
+    let width: number;
+    let height: number;
+    let drawSource: CanvasImageSource;
+    let cleanup: (() => void) | null = null;
+
+    if (source instanceof HTMLCanvasElement) {
+      width = source.width;
+      height = source.height;
+      drawSource = source;
+    } else {
+      const url = URL.createObjectURL(source);
+      cleanup = () => URL.revokeObjectURL(url);
+      try {
+        const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+          const i = new Image();
+          i.onload = () => resolve(i);
+          i.onerror = () => reject(new Error('image decode failed'));
+          i.src = url;
+        });
+        width = img.naturalWidth;
+        height = img.naturalHeight;
+        drawSource = img;
+      } catch (err) {
+        cleanup();
+        throw err;
+      }
+    }
+
+    const ratio = Math.min(1, maxDim / Math.max(width, height));
+    const targetW = Math.max(1, Math.round(width * ratio));
+    const targetH = Math.max(1, Math.round(height * ratio));
+    const canvas = document.createElement('canvas');
+    canvas.width = targetW;
+    canvas.height = targetH;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      cleanup?.();
+      return null;
+    }
+    // Flatten transparency to white for JPEG output.
+    if (mime === 'image/jpeg') {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, targetW, targetH);
+    }
+    ctx.drawImage(drawSource, 0, 0, targetW, targetH);
+    cleanup?.();
+    return await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob((b) => resolve(b), mime, quality),
+    );
+  }
+
   private async captureScreenshot(): Promise<void> {
     if (this.capturing) return;
     this.capturing = true;
@@ -339,11 +403,9 @@ export class SkalpaiFeedbackElement extends HTMLElementCtor {
         setTimeout(() => reject(new Error('capture timeout')), 15000);
       });
       const canvas = await Promise.race([capturePromise, timeoutPromise]);
-      const blob = await new Promise<Blob | null>((resolve) =>
-        canvas.toBlob((b) => resolve(b), 'image/png'),
-      );
+      const blob = await this.compressImage(canvas, 'image/jpeg');
       if (!blob) throw new Error('capture failed');
-      this.addAttachment(blob, 'screenshot.png');
+      this.addAttachment(blob, 'screenshot.jpg');
     } catch (err) {
       this.errorMsg = err instanceof Error ? err.message : 'capture failed';
       this.state = 'error';
@@ -365,6 +427,11 @@ export class SkalpaiFeedbackElement extends HTMLElementCtor {
       this.state = 'error';
       return;
     }
+    if (blob.size > MAX_ATTACHMENT_BYTES) {
+      this.errorMsg = `Fichier trop volumineux (max ${Math.round(MAX_ATTACHMENT_BYTES / 1024 / 1024)} Mo)`;
+      this.state = 'error';
+      return;
+    }
     const previewUrl = URL.createObjectURL(blob);
     this.attachments.push({ blob, previewUrl, name });
   }
@@ -381,10 +448,25 @@ export class SkalpaiFeedbackElement extends HTMLElementCtor {
     this.attachments = [];
   }
 
-  private onFilesPicked(files: FileList | null): void {
+  private async onFilesPicked(files: FileList | null): Promise<void> {
     if (!files) return;
     for (const f of Array.from(files)) {
-      this.addAttachment(f, f.name);
+      let blob: Blob = f;
+      let name = f.name;
+      const isCompressible =
+        f.type === 'image/png' || f.type === 'image/jpeg' || f.type === 'image/webp';
+      if (isCompressible && f.size > COMPRESS_THRESHOLD_BYTES) {
+        try {
+          const compressed = await this.compressImage(f, 'image/jpeg');
+          if (compressed && compressed.size < f.size) {
+            blob = compressed;
+            name = name.replace(/\.(png|webp|jpe?g)$/i, '') + '.jpg';
+          }
+        } catch {
+          // fall through with the original blob; addAttachment will reject if too large
+        }
+      }
+      this.addAttachment(blob, name);
     }
     this.render();
   }
