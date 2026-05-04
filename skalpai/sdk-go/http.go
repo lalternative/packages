@@ -1,6 +1,7 @@
 package skalpai
 
 import (
+	"log/slog"
 	"net/http"
 	"os"
 	"strconv"
@@ -17,6 +18,10 @@ import (
 type HTTPMiddlewareConfig struct {
 	ServiceName    string
 	RouteExtractor func(*http.Request) string
+	// EmitAccessLogs emits one slog.Info record per request with method,
+	// route, status, and duration. 5xx responses are always logged at Error
+	// level regardless of this setting.
+	EmitAccessLogs bool
 }
 
 type httpServerInstruments struct {
@@ -57,10 +62,13 @@ func WrapHTTPHandler(next http.Handler, cfg HTTPMiddlewareConfig) http.Handler {
 		recorder := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(recorder, r)
 
+		duration := time.Since(startedAt)
 		finalAttrs := requestAttributes(r, cfg.RouteExtractor, recorder.status)
 		instruments.requestCount.Add(r.Context(), 1, metricapi.WithAttributes(finalAttrs...))
-		instruments.requestDuration.Record(r.Context(), time.Since(startedAt).Seconds(), metricapi.WithAttributes(finalAttrs...))
+		instruments.requestDuration.Record(r.Context(), duration.Seconds(), metricapi.WithAttributes(finalAttrs...))
 		instruments.responseSize.Record(r.Context(), recorder.bytes, metricapi.WithAttributes(finalAttrs...))
+
+		emitAccessLog(r, cfg, recorder, duration)
 	})
 }
 
@@ -141,6 +149,44 @@ func statusClass(statusCode int) string {
 		return "unknown"
 	}
 	return strconv.Itoa(statusCode/100) + "xx"
+}
+
+func emitAccessLog(r *http.Request, cfg HTTPMiddlewareConfig, rec *statusRecorder, duration time.Duration) {
+	isServerError := rec.status >= 500
+	if !cfg.EmitAccessLogs && !isServerError {
+		return
+	}
+
+	route := r.URL.Path
+	if cfg.RouteExtractor != nil {
+		if extracted := strings.TrimSpace(cfg.RouteExtractor(r)); extracted != "" {
+			route = extracted
+		}
+	}
+
+	attrs := []any{
+		slog.String("http.request.method", r.Method),
+		slog.String("http.route", route),
+		slog.Int("http.response.status_code", rec.status),
+		slog.Int64("http.response.size", rec.bytes),
+		slog.Float64("http.server.request.duration_ms", float64(duration.Microseconds())/1000.0),
+	}
+
+	level := slog.LevelInfo
+	if isServerError {
+		level = slog.LevelError
+	}
+	slog.Default().LogAttrs(r.Context(), level, "http request", attrsToSlog(attrs)...)
+}
+
+func attrsToSlog(in []any) []slog.Attr {
+	out := make([]slog.Attr, 0, len(in))
+	for _, a := range in {
+		if attr, ok := a.(slog.Attr); ok {
+			out = append(out, attr)
+		}
+	}
+	return out
 }
 
 type statusRecorder struct {

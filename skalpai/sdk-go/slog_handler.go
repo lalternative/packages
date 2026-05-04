@@ -6,6 +6,7 @@ import (
 
 	otellog "go.opentelemetry.io/otel/log"
 	"go.opentelemetry.io/otel/log/global"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // EnableSlogBridge redirects slog.Default() (and stdlib log) to the OTEL
@@ -37,13 +38,19 @@ func (h *slogHandler) Handle(ctx context.Context, rec slog.Record) error {
 	otelRec.SetSeverity(slogLevelToOTEL(rec.Level))
 	otelRec.SetSeverityText(rec.Level.String())
 
-	attrs := make([]otellog.KeyValue, 0, rec.NumAttrs()+len(h.attrs))
+	attrs := make([]otellog.KeyValue, 0, rec.NumAttrs()+len(h.attrs)+2)
 	rec.Attrs(func(a slog.Attr) bool {
 		attrs = append(attrs, otellog.String(a.Key, a.Value.String()))
 		return true
 	})
 	for _, a := range h.attrs {
 		attrs = append(attrs, otellog.String(a.Key, a.Value.String()))
+	}
+	if sc := trace.SpanContextFromContext(ctx); sc.IsValid() {
+		attrs = append(attrs,
+			otellog.String("trace_id", sc.TraceID().String()),
+			otellog.String("span_id", sc.SpanID().String()),
+		)
 	}
 	otelRec.AddAttributes(attrs...)
 
