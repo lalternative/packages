@@ -129,6 +129,7 @@ func requestAttributes(r *http.Request, routeExtractor func(*http.Request) strin
 	attrs := []attribute.KeyValue{
 		attribute.String("http.request.method", r.Method),
 		attribute.String("server.address", r.Host),
+		attribute.String("url.scheme", requestScheme(r)),
 	}
 	if routeExtractor != nil {
 		if route := strings.TrimSpace(routeExtractor(r)); route != "" {
@@ -142,6 +143,19 @@ func requestAttributes(r *http.Request, routeExtractor func(*http.Request) strin
 		)
 	}
 	return attrs
+}
+
+func requestScheme(r *http.Request) string {
+	if r.TLS != nil {
+		return "https"
+	}
+	if proto := r.Header.Get("X-Forwarded-Proto"); proto != "" {
+		return proto
+	}
+	if r.URL != nil && r.URL.Scheme != "" {
+		return r.URL.Scheme
+	}
+	return "http"
 }
 
 func statusClass(statusCode int) string {
@@ -167,6 +181,10 @@ func emitAccessLog(r *http.Request, cfg HTTPMiddlewareConfig, rec *statusRecorde
 	attrs := []any{
 		slog.String("http.request.method", r.Method),
 		slog.String("http.route", route),
+		slog.String("url.path", r.URL.Path),
+		slog.String("url.query", r.URL.RawQuery),
+		slog.String("url.scheme", requestScheme(r)),
+		slog.String("server.address", r.Host),
 		slog.Int("http.response.status_code", rec.status),
 		slog.Int64("http.response.size", rec.bytes),
 		slog.Float64("http.server.request.duration_ms", float64(duration.Microseconds())/1000.0),
