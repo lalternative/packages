@@ -1,6 +1,6 @@
 {
   "name": "@digstack/skalpai-sdk-browser",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Skalpai observability SDK for browsers — captures logs, errors, and performance metrics",
   "type": "module",
   "main": "./dist/index.js",
@@ -19,6 +19,7 @@
   "dependencies": {
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/api-logs": "^0.217.0",
+    "@opentelemetry/core": "^2.5.0",
     "@opentelemetry/exporter-logs-otlp-http": "^0.217.0",
     "@opentelemetry/exporter-metrics-otlp-http": "^0.217.0",
     "@opentelemetry/exporter-trace-otlp-http": "^0.217.0",

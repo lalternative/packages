@@ -1,4 +1,5 @@
 import { logs } from '@opentelemetry/api-logs';
+import { propagation } from '@opentelemetry/api';
 import { BatchLogRecordProcessor, LoggerProvider } from '@opentelemetry/sdk-logs';
 import { OTLPLogExporter } from '@opentelemetry/exporter-logs-otlp-http';
 import { BasicTracerProvider, BatchSpanProcessor } from '@opentelemetry/sdk-trace-base';
@@ -9,11 +10,14 @@ import {
 } from '@opentelemetry/sdk-metrics';
 import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http';
 import { resourceFromAttributes } from '@opentelemetry/resources';
+import { W3CTraceContextPropagator } from '@opentelemetry/core';
 
 import { patchConsole } from './logs.js';
 import type { BrowserLogLevel } from './logs.js';
 import { captureGlobalErrors } from './errors.js';
 import { startBrowserMetrics } from './metrics.js';
+import { startPageviewTracking } from './navigation.js';
+import { instrumentFetch } from './fetch.js';
 
 const EXPORTER_TIMEOUT_MS = 10_000;
 const LOG_BATCH_DELAY_MS = 30_000;
@@ -39,6 +43,20 @@ export interface SkalpaiConfig {
   logLevel?: BrowserLogLevel;
   /** Disable metrics collection (default: true) */
   disableMetrics?: boolean;
+  /** Emit OTLP log records on SPA navigation (history API + popstate + hashchange) and initial load (default: false) */
+  enablePageviews?: boolean;
+  /** Wrap window.fetch to emit spans and optionally inject W3C traceparent into outgoing requests (default: false) */
+  enableFetch?: boolean;
+  /**
+   * Hosts/URLs to inject W3C traceparent into when `enableFetch` is true.
+   * String entries match by substring on the target host. RegExp entries are tested against the full URL.
+   * Default: [] (no propagation).
+   */
+  fetchPropagateTo?: (string | RegExp)[];
+  /** Replace query parameter values with `REDACTED` on captured fetch spans (default: true) */
+  fetchRedactQuery?: boolean;
+  /** Skip fetch instrumentation when the URL matches any of these strings (substring on host) or RegExp (full URL). Default: []. */
+  fetchIgnoreUrls?: (string | RegExp)[];
 }
 
 let tracerProvider: BasicTracerProvider | null = null;
@@ -46,6 +64,8 @@ let loggerProvider: LoggerProvider | null = null;
 let meterProvider: MeterProvider | null = null;
 let cleanupErrors: (() => void) | null = null;
 let cleanupMetrics: (() => void) | null = null;
+let cleanupPageviews: (() => void) | null = null;
+let cleanupFetch: (() => void) | null = null;
 let initialized = false;
 
 export function init(config: SkalpaiConfig): void {
@@ -64,6 +84,11 @@ export function init(config: SkalpaiConfig): void {
     disableConsoleLogs = false,
     logLevel = 'warn',
     disableMetrics = true,
+    enablePageviews = false,
+    enableFetch = false,
+    fetchPropagateTo = [],
+    fetchRedactQuery = true,
+    fetchIgnoreUrls = [],
   } = config;
 
   const headers = apiKey ? { 'x-api-key': apiKey } : undefined;
@@ -122,6 +147,23 @@ export function init(config: SkalpaiConfig): void {
   // Global error capture
   cleanupErrors = captureGlobalErrors(logger);
 
+  // Pageviews
+  if (enablePageviews) {
+    cleanupPageviews = startPageviewTracking(logger);
+  }
+
+  // Fetch instrumentation (requires W3C propagator for traceparent injection)
+  if (enableFetch) {
+    propagation.setGlobalPropagator(new W3CTraceContextPropagator());
+    const tracer = tracerProvider.getTracer(serviceName, serviceVersion);
+    cleanupFetch = instrumentFetch(tracer, {
+      endpoint,
+      propagateTo: fetchPropagateTo,
+      redactQuery: fetchRedactQuery,
+      ignoreUrls: fetchIgnoreUrls,
+    });
+  }
+
   // Metrics
   if (!disableMetrics) {
     const metricExporter = new OTLPMetricExporter({
@@ -163,6 +205,8 @@ function flush(): void {
 export async function shutdown(): Promise<void> {
   cleanupErrors?.();
   cleanupMetrics?.();
+  cleanupPageviews?.();
+  cleanupFetch?.();
   await Promise.all([
     tracerProvider?.shutdown(),
     loggerProvider?.shutdown(),
@@ -173,5 +217,7 @@ export async function shutdown(): Promise<void> {
   meterProvider = null;
   cleanupErrors = null;
   cleanupMetrics = null;
+  cleanupPageviews = null;
+  cleanupFetch = null;
   initialized = false;
 }
