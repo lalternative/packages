@@ -22,6 +22,10 @@ type HTTPMiddlewareConfig struct {
 	// route, status, and duration. 5xx responses are always logged at Error
 	// level regardless of this setting.
 	EmitAccessLogs bool
+	// Redaction controls query-string sanitization in access logs.
+	// Zero value = redaction ON with DefaultSensitiveQueryKeys.
+	// Set Redaction.Disabled = true to opt out entirely.
+	Redaction RedactionConfig
 }
 
 type httpServerInstruments struct {
@@ -182,7 +186,7 @@ func emitAccessLog(r *http.Request, cfg HTTPMiddlewareConfig, rec *statusRecorde
 		slog.String("http.request.method", r.Method),
 		slog.String("http.route", route),
 		slog.String("url.path", r.URL.Path),
-		slog.String("url.query", r.URL.RawQuery),
+		slog.String("url.query", RedactQuery(r.URL.RawQuery, cfg.Redaction)),
 		slog.String("url.scheme", requestScheme(r)),
 		slog.String("server.address", r.Host),
 		slog.Int("http.response.status_code", rec.status),
