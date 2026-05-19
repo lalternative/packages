@@ -202,6 +202,39 @@ function flush(): void {
   meterProvider?.forceFlush();
 }
 
+declare global {
+  interface Window {
+    __skalpai_initialized?: boolean;
+  }
+}
+
+/**
+ * Idempotent client-side bootstrap. Safe to call from a React `useEffect`,
+ * Vue `onMounted`, Svelte `$effect`, or any other framework's mount hook.
+ *
+ * Behaviour:
+ * - SSR no-op (`typeof window === 'undefined'`).
+ * - Dedupes via `window.__skalpai_initialized` (boolean).
+ * - Skips silently if `config.endpoint` is falsy — useful for dev where
+ *   the OTLP endpoint isn't set and you don't want the SDK to throw.
+ * - Otherwise calls `init(config)` exactly once.
+ *
+ * Caller stays responsible for sourcing the config — read your env vars
+ * however your bundler exposes them (import.meta.env, process.env, etc.)
+ * and build the object yourself. The SDK does not look at env.
+ *
+ * Returns true if init ran, false if it was skipped (SSR, dedupe, no
+ * endpoint). Callers usually ignore the return value.
+ */
+export function ensureInit(config: SkalpaiConfig): boolean {
+  if (typeof window === 'undefined') return false;
+  if (window.__skalpai_initialized) return false;
+  if (!config.endpoint) return false;
+  init(config);
+  window.__skalpai_initialized = true;
+  return true;
+}
+
 export async function shutdown(): Promise<void> {
   cleanupErrors?.();
   cleanupMetrics?.();
