@@ -15,6 +15,8 @@ type Labels = {
   remove_screenshot: string;
   attach: string;
   remove_attachment: string;
+  email_placeholder: string;
+  email_invalid: string;
 };
 
 const DEFAULT_LABELS: Labels = {
@@ -32,6 +34,8 @@ const DEFAULT_LABELS: Labels = {
   remove_screenshot: 'Retirer la capture',
   attach: 'Joindre une image',
   remove_attachment: 'Retirer la pièce jointe',
+  email_placeholder: 'Votre email (pour une réponse)',
+  email_invalid: 'Email invalide',
 };
 
 const MAX_ATTACHMENTS = 5;
@@ -123,6 +127,18 @@ const STYLES = `
     outline: 2px solid var(--skalpai-accent);
     outline-offset: -1px; border-color: transparent;
   }
+  .email {
+    width: 100%; padding: 9px 12px;
+    border: 1px solid var(--skalpai-border); border-radius: 8px;
+    font: inherit; font-size: 13px;
+    background: var(--skalpai-input); color: var(--skalpai-fg);
+  }
+  .email::placeholder { color: var(--skalpai-muted); }
+  .email:focus {
+    outline: 2px solid var(--skalpai-accent);
+    outline-offset: -1px; border-color: transparent;
+  }
+  .email-hint { font-size: 11px; color: #f87171; margin-top: -6px; }
   .meta { font-size: 11px; color: var(--skalpai-muted); word-break: break-all; line-height: 1.5; }
   .capture-row { display: flex; align-items: center; gap: 8px; }
   .capture-btn {
@@ -162,6 +178,10 @@ const STYLES = `
   .ok { padding: 28px 16px; text-align: center; font-size: 13px; color: var(--skalpai-muted); }
 `;
 
+// Lightweight client-side email check. The server re-validates before any
+// reply is sent (contact_user), so this only guards the UX, not security.
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!),
@@ -174,7 +194,7 @@ const HTMLElementCtor: typeof HTMLElement =
     : (class {} as unknown as typeof HTMLElement);
 
 export class SkalpaiFeedbackElement extends HTMLElementCtor {
-  static observedAttributes = ['api-key', 'endpoint', 'project-id', 'labels', 'theme'];
+  static observedAttributes = ['api-key', 'endpoint', 'project-id', 'labels', 'theme', 'user-email'];
 
   private root: ShadowRoot;
   private open = false;
@@ -187,8 +207,16 @@ export class SkalpaiFeedbackElement extends HTMLElementCtor {
   private themeObserver: MutationObserver | null = null;
   private mqlDark: MediaQueryList | null = null;
 
-  /** Optional user identifier (email, user id, etc.) — set programmatically. */
+  /**
+   * Optional user email used as the reply-to identity. Pre-filled from the
+   * `user-email` attribute (set by the host app for logged-in users) and
+   * editable by the visitor. Left empty for anonymous feedback — the entry is
+   * still recorded, but the project owner cannot reply by email.
+   */
   userIdentifier = '';
+
+  /** Whether the email field was edited/blurred — gates the invalid hint. */
+  private emailTouched = false;
 
   get apiKey(): string {
     return this.getAttribute('api-key') ?? '';
@@ -243,6 +271,8 @@ export class SkalpaiFeedbackElement extends HTMLElementCtor {
   }
 
   connectedCallback(): void {
+    const presetEmail = this.getAttribute('user-email');
+    if (presetEmail && !this.userIdentifier) this.userIdentifier = presetEmail;
     this.applyTheme();
     this.setupThemeWatchers();
     this.render();
@@ -261,6 +291,11 @@ export class SkalpaiFeedbackElement extends HTMLElementCtor {
     if (name === 'theme') {
       this.applyTheme();
       return;
+    }
+    if (name === 'user-email') {
+      const v = this.getAttribute('user-email');
+      // Only adopt the attribute as long as the visitor hasn't typed their own.
+      if (v && !this.emailTouched) this.userIdentifier = v;
     }
     if (this.root.firstChild) this.render();
   }
@@ -500,6 +535,7 @@ export class SkalpaiFeedbackElement extends HTMLElementCtor {
       this.state = 'sent';
       this.message = '';
       this.type = 'other';
+      this.emailTouched = false;
       this.clearAttachments();
       this.render();
       this.dispatchEvent(new CustomEvent('skalpai-feedback-sent'));
@@ -547,6 +583,13 @@ export class SkalpaiFeedbackElement extends HTMLElementCtor {
                   )
                   .join('')}
               </div>
+              <input class="email" type="email" inputmode="email" autocomplete="email"
+                placeholder="${L.email_placeholder}" value="${escapeHtml(this.userIdentifier)}" />
+              ${
+                this.emailTouched && this.userIdentifier.trim() && !EMAIL_RE.test(this.userIdentifier.trim())
+                  ? `<div class="email-hint">${L.email_invalid}</div>`
+                  : ''
+              }
               <textarea placeholder="${L.placeholder}" rows="3">${escapeHtml(this.message)}</textarea>
               <div class="capture-row">
                 <button class="capture-btn" type="button" ${this.capturing ? 'disabled' : ''} aria-label="${L.capture}">
@@ -602,6 +645,18 @@ export class SkalpaiFeedbackElement extends HTMLElementCtor {
         this.render();
       });
     });
+    const emailInput = this.root.querySelector<HTMLInputElement>('.email');
+    if (emailInput) {
+      emailInput.addEventListener('input', (e) => {
+        this.userIdentifier = (e.target as HTMLInputElement).value;
+        this.emailTouched = true;
+      });
+      // Re-render on blur so the invalid hint can appear without stealing focus
+      // mid-typing.
+      emailInput.addEventListener('blur', () => {
+        if (this.emailTouched) this.render();
+      });
+    }
     const ta = this.root.querySelector('textarea');
     if (ta) {
       ta.addEventListener('input', (e) => {
