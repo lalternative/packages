@@ -1,6 +1,6 @@
 module github.com/digstack/skalpai/packages/sdk-go
 
-go 1.25.0
+go 1.26.3
 
 require (
 	go.opentelemetry.io/otel v1.43.0
