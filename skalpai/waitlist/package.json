@@ -1,5 +1,5 @@
 {
-  "name": "@digstack/skalpai-waitlist",
+  "name": "@lalternative/skalpai-waitlist",
   "version": "0.1.0",
   "description": "Client and UI for the Skalpai waitlist service",
   "type": "module",
@@ -35,7 +35,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/digstack/skalpai.git",
-    "directory": "packages/waitlist"
+    "url": "https://github.com/lalternative/packages.git",
+    "directory": "skalpai/waitlist"
   }
 }

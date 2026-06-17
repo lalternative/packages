@@ -7,5 +7,5 @@ export default defineConfig({
   dts: true,
   clean: true,
   sourcemap: true,
-  external: ['react', '@digstack/skalpai-feedback-widget'],
+  external: ['react', '@lalternative/skalpai-feedback-widget'],
 });

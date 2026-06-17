@@ -1,5 +1,5 @@
 {
-  "name": "@digstack/skalpai-sdk-node",
+  "name": "@lalternative/skalpai-sdk-node",
   "version": "0.2.1",
   "description": "Skalpai observability SDK for Node.js — auto-instruments traces, logs, and metrics",
   "type": "module",
@@ -39,7 +39,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/digstack/skalpai.git",
-    "directory": "packages/sdk-node"
+    "url": "https://github.com/lalternative/packages.git",
+    "directory": "skalpai/sdk-node"
   }
 }

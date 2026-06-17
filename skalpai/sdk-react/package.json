@@ -1,5 +1,5 @@
 {
-  "name": "@digstack/skalpai-sdk-react",
+  "name": "@lalternative/skalpai-sdk-react",
   "version": "0.1.1",
   "description": "React wrapper for the Skalpai feedback widget",
   "type": "module",
@@ -20,7 +20,7 @@
     "react": ">=18"
   },
   "dependencies": {
-    "@digstack/skalpai-feedback-widget": "workspace:*"
+    "@lalternative/skalpai-feedback-widget": "workspace:*"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",
@@ -35,7 +35,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/digstack/skalpai.git",
-    "directory": "packages/sdk-react"
+    "url": "https://github.com/lalternative/packages.git",
+    "directory": "skalpai/sdk-react"
   }
 }
