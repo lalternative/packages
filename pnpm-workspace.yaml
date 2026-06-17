@@ -1,2 +1,5 @@
 packages:
   - "skalpai/*"
+allowBuilds:
+  esbuild: true
+  protobufjs: false

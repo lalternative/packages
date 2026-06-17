@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import '@digstack/skalpai-feedback-widget';
+import '@lalternative/skalpai-feedback-widget';
 
 export type FeedbackTheme = 'light' | 'dark' | 'auto';
 
