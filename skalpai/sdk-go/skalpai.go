@@ -2,7 +2,7 @@
 //
 // Usage:
 //
-//	import "github.com/digstack/skalpai/packages/sdk-go"
+//	import "github.com/lalternative/packages/skalpai/sdk-go"
 //
 //	func main() {
 //	    shutdown, err := skalpai.Init(context.Background(), skalpai.Config{

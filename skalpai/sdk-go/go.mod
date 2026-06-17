@@ -1,4 +1,4 @@
-module github.com/digstack/skalpai/packages/sdk-go
+module github.com/lalternative/packages/skalpai/sdk-go
 
 go 1.26.3
 
