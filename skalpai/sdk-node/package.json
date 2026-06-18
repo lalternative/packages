@@ -11,7 +11,9 @@
       "types": "./dist/index.d.ts"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch"
@@ -32,10 +34,18 @@
     "tsup": "^8.0.0",
     "typescript": "^5.7.0"
   },
-  "keywords": ["skalpai", "observability", "opentelemetry", "tracing", "metrics", "logging"],
+  "keywords": [
+    "skalpai",
+    "observability",
+    "opentelemetry",
+    "tracing",
+    "metrics",
+    "logging"
+  ],
   "license": "MIT",
   "publishConfig": {
-    "registry": "https://npm.pkg.github.com"
+    "registry": "https://registry.npmjs.org",
+    "access": "public"
   },
   "repository": {
     "type": "git",

@@ -47,8 +47,10 @@ export function createPlatformAuth(
   const renderEmail = renderOtpEmail ?? defaultRenderOtpEmail
 
   // The concrete instance type (with email-otp/admin plugins) is widened to
-  // the base Auth type so the published .d.ts stays portable — consumers use
-  // the standard auth API (handler, api.getSession, …), not plugin-inferred types.
+  // the base Auth type so the published .d.ts stays portable (inferring the
+  // full plugin type triggers TS2742 — it can't be named without a zod ref).
+  // The admin() plugin's user.role field is re-exposed via module augmentation
+  // below, so consumers (e.g. transcript-web me.ts) still see session.user.role.
   return betterAuth({
     database,
     baseURL,
@@ -126,3 +128,11 @@ export function createPlatformAuth(
 }
 
 export type PlatformAuth = ReturnType<typeof createPlatformAuth>
+
+// Re-export the session contract from /server so consumers that import the
+// auth factory can type api.getSession() without a second import path.
+export type {
+  PlatformUser,
+  PlatformSession,
+  PlatformSessionData,
+} from "./types"

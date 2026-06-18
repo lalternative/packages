@@ -1,5 +1,48 @@
 import type { BetterAuthOptions } from "better-auth"
 
+/**
+ * Session user shape exposed by the platform auth instance.
+ *
+ * The instance returned by {@link createPlatformAuth} is widened to the base
+ * `Auth` type so the published `.d.ts` stays portable (inferring the full
+ * plugin-augmented type triggers TS2742). That widening hides the fields the
+ * email-otp/admin plugins add at runtime — notably `role` from `admin()`.
+ *
+ * This is the hand-maintained contract for what `api.getSession()` actually
+ * returns. Consumers cast the session to {@link PlatformSession} to read these
+ * fields with types. Keep it in sync with the enabled plugins.
+ */
+export interface PlatformUser {
+  id: string
+  email: string
+  emailVerified: boolean
+  name: string
+  image?: string | null
+  createdAt: Date
+  updatedAt: Date
+  /** From the admin() plugin. Absent until a role is assigned. */
+  role?: string | null
+  /** From the admin() plugin. */
+  banned?: boolean | null
+}
+
+export interface PlatformSessionData {
+  id: string
+  userId: string
+  expiresAt: Date
+  token: string
+  createdAt: Date
+  updatedAt: Date
+  ipAddress?: string | null
+  userAgent?: string | null
+}
+
+/** Return shape of `auth.api.getSession()` for platform apps. */
+export interface PlatformSession {
+  user: PlatformUser
+  session: PlatformSessionData
+}
+
 export type PlatformAuthMailerType =
   | "email-verification"
   | "forget-password"

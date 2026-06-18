@@ -14,7 +14,9 @@
       "import": "./dist/auto.js"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch"
@@ -26,10 +28,16 @@
     "tsup": "^8.0.0",
     "typescript": "^5.7.0"
   },
-  "keywords": ["skalpai", "feedback", "widget", "web-component"],
+  "keywords": [
+    "skalpai",
+    "feedback",
+    "widget",
+    "web-component"
+  ],
   "license": "MIT",
   "publishConfig": {
-    "registry": "https://npm.pkg.github.com"
+    "registry": "https://registry.npmjs.org",
+    "access": "public"
   },
   "repository": {
     "type": "git",
