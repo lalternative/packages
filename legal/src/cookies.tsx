@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { LegalShell, Section, formatUpdated, type LegalClassNames } from './shell'
 import { resolvePaths, type LegalContext } from './types'
 
@@ -18,6 +19,12 @@ export type CookiesPageProps = LegalContext & {
    */
   strictlyNecessaryOnly: boolean
   classNames?: LegalClassNames
+  /** Which of the related documents this site actually publishes. A link to a page that does not exist is worse than no link. */
+  related?: { legal?: boolean; privacy?: boolean; terms?: boolean }
+  /** Extra related documents, e.g. an acceptable use policy or a DPA. */
+  extraLinks?: { href: string; label: string }[]
+  /** Product-specific sections appended after the shared ones. */
+  children?: ReactNode
 }
 
 const copy = {
@@ -107,10 +114,19 @@ export function CookiesPage({
   cookies,
   strictlyNecessaryOnly,
   classNames,
+  related,
+  extraLinks = [],
+  children,
 }: CookiesPageProps) {
   const t = copy[locale]
   const paths = resolvePaths(site)
   const c = classNames
+  const links = [
+    ...(related?.legal === false ? [] : [{ href: paths.legal, label: t.related.legal }]),
+    ...(related?.privacy === false ? [] : [{ href: paths.privacy, label: t.related.privacy }]),
+    ...(related?.terms === false ? [] : [{ href: paths.terms, label: t.related.terms }]),
+    ...extraLinks,
+  ]
 
   return (
     <LegalShell title={t.title} updated={formatUpdated(updatedAt, locale)} classNames={c}>
@@ -156,23 +172,17 @@ export function CookiesPage({
 
       <Section title={t.relatedTitle} classNames={c}>
         <ul className={c?.list ?? 'list-disc space-y-1 pl-5'}>
-          <li>
-            <a className={c?.link ?? 'underline underline-offset-2'} href={paths.legal}>
-              {t.related.legal}
-            </a>
-          </li>
-          <li>
-            <a className={c?.link ?? 'underline underline-offset-2'} href={paths.privacy}>
-              {t.related.privacy}
-            </a>
-          </li>
-          <li>
-            <a className={c?.link ?? 'underline underline-offset-2'} href={paths.terms}>
-              {t.related.terms}
-            </a>
-          </li>
+          {links.map((entry) => (
+            <li key={entry.href}>
+              <a className={c?.link ?? 'underline underline-offset-2'} href={entry.href}>
+                {entry.label}
+              </a>
+            </li>
+          ))}
         </ul>
       </Section>
+
+      {children}
     </LegalShell>
   )
 }

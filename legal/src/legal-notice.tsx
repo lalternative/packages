@@ -6,6 +6,8 @@ export type LegalNoticeProps = LegalContext & {
   /** Product-specific blocks: hosting detail, AI processing, subprocessors. */
   children?: ReactNode
   classNames?: LegalClassNames
+  /** Set false when the site carries no separate privacy page, so the notice links only to the cookie policy. */
+  hasPrivacyPage?: boolean
 }
 
 const copy = {
@@ -31,11 +33,24 @@ const copy = {
     liability:
       "L'éditeur s'efforce d'assurer l'exactitude et la mise à jour des informations diffusées sur le site, sans pouvoir en garantir l'exhaustivité. Il ne saurait être tenu responsable des dommages résultant d'une intrusion frauduleuse d'un tiers, ni du contenu des sites tiers vers lesquels des liens hypertextes renvoient, sur lesquels il n'exerce aucun contrôle.",
     dataTitle: 'Données personnelles',
-    data: (privacy: string, cookies: string) => (
+    data: (privacy: string | null, cookies: string, link: string) => (
       <>
-        Le traitement des données personnelles est détaillé dans la{' '}
-        <a href={privacy}>politique de confidentialité</a>, et l'usage des cookies dans la{' '}
-        <a href={cookies}>politique cookies</a>.
+        {privacy ? (
+          <>
+            Le traitement des données personnelles est détaillé dans la{' '}
+            <a className={link} href={privacy}>
+              politique de confidentialité
+            </a>
+            , et l'usage
+          </>
+        ) : (
+          <>L&apos;usage</>
+        )}{' '}
+        des cookies est détaillé dans la{' '}
+        <a className={link} href={cookies}>
+          politique cookies
+        </a>
+        .
       </>
     ),
     lawTitle: 'Droit applicable',
@@ -63,10 +78,24 @@ const copy = {
     liability:
       'The publisher strives to keep the information on this site accurate and current, without guaranteeing completeness. The publisher is not liable for damage resulting from a third party’s fraudulent intrusion, nor for the content of third-party sites linked from here, over which it exercises no control.',
     dataTitle: 'Personal data',
-    data: (privacy: string, cookies: string) => (
+    data: (privacy: string | null, cookies: string, link: string) => (
       <>
-        Personal data processing is described in the <a href={privacy}>privacy policy</a>, and
-        cookie use in the <a href={cookies}>cookie policy</a>.
+        {privacy ? (
+          <>
+            Personal data processing is described in the{' '}
+            <a className={link} href={privacy}>
+              privacy policy
+            </a>
+            , and cookie use is described
+          </>
+        ) : (
+          <>Cookie use is described</>
+        )}{' '}
+        in the{' '}
+        <a className={link} href={cookies}>
+          cookie policy
+        </a>
+        .
       </>
     ),
     lawTitle: 'Governing law',
@@ -82,6 +111,7 @@ export function LegalNotice({
   updatedAt,
   children,
   classNames,
+  hasPrivacyPage = true,
 }: LegalNoticeProps) {
   const t = copy[locale]
   const paths = resolvePaths(site)
@@ -122,6 +152,7 @@ export function LegalNotice({
           <li>
             {t.director} : {publisher.publicationDirector}
           </li>
+          {publisher.extraRows?.map((row) => <li key={row}>{row}</li>)}
         </ul>
         {publisher.vatExempt ? <p>{t.vatExempt}</p> : null}
         {publisher.vatNumber ? (
@@ -154,7 +185,7 @@ export function LegalNotice({
       </Section>
 
       <Section title={t.dataTitle} classNames={c}>
-        <p>{t.data(paths.privacy, paths.cookies)}</p>
+        <p>{t.data(hasPrivacyPage ? paths.privacy : null, paths.cookies, link)}</p>
       </Section>
 
       <Section title={t.lawTitle} classNames={c}>

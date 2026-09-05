@@ -17,6 +17,8 @@ export type Publisher = {
   vatNumber?: string
   /** Published only when a line actually exists: art. 6-III LCEN and, in B2C, art. L. 221-5 C. consom. */
   phone?: string
+  /** Extra identity rows a product must state, e.g. a regulated-activity mention. */
+  extraRows?: string[]
 }
 
 export type Host = {
