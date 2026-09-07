@@ -1,0 +1,49 @@
+@import "tailwindcss";
+
+@source "../src/**/*.tsx";
+
+/* The tokens the components paint from. A consuming app defines its own; these
+   are a neutral stand-in so the playground shows the shape, not a brand. */
+@theme {
+  --color-background: hsl(0 0% 100%);
+  --color-foreground: hsl(0 0% 10%);
+  --color-card: hsl(0 0% 100%);
+  --color-card-foreground: hsl(0 0% 10%);
+  --color-muted: hsl(0 0% 96%);
+  --color-muted-foreground: hsl(0 0% 45%);
+  --color-primary: hsl(0 0% 10%);
+  --color-primary-foreground: hsl(0 0% 98%);
+  --color-accent: hsl(0 0% 96%);
+  --color-accent-foreground: hsl(0 0% 10%);
+  --color-destructive: hsl(0 72% 51%);
+  --color-destructive-foreground: hsl(0 0% 98%);
+  --color-border: hsl(0 0% 90%);
+  --color-input: hsl(0 0% 90%);
+  --color-ring: hsl(0 0% 65%);
+}
+
+@media (prefers-color-scheme: dark) {
+  @theme {
+    --color-background: hsl(0 0% 7%);
+    --color-foreground: hsl(0 0% 96%);
+    --color-card: hsl(0 0% 10%);
+    --color-card-foreground: hsl(0 0% 96%);
+    --color-muted: hsl(0 0% 15%);
+    --color-muted-foreground: hsl(0 0% 60%);
+    --color-primary: hsl(0 0% 96%);
+    --color-primary-foreground: hsl(0 0% 10%);
+    --color-accent: hsl(0 0% 15%);
+    --color-accent-foreground: hsl(0 0% 96%);
+    --color-border: hsl(0 0% 20%);
+    --color-input: hsl(0 0% 24%);
+    --color-ring: hsl(0 0% 45%);
+  }
+}
+
+body {
+  margin: 0;
+  font-family:
+    system-ui,
+    -apple-system,
+    sans-serif;
+}
