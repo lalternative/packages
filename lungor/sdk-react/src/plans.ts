@@ -23,6 +23,8 @@ export interface PricingPlan {
   id: string;
   code: string;
   name: string;
+  /** One line on who the plan is for, shown under its name. */
+  description?: string;
   /** Minor units of `currency` (2900 = 29.00 EUR). Never a float — a cent lost to rounding fails an audit. */
   amount: number;
   /** ISO 4217, e.g. `EUR`. */

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, type CSSProperties } from 'react';
 import { formatPrice, isFreePlan, type PricingAllocation, type PricingPlan } from './plans.js';
 
 /**
@@ -225,10 +225,16 @@ function PlanAction({
   );
 }
 
-function Price({ state }: { state: PlanState }) {
+function Price({ state, size = 'md' }: { state: PlanState; size?: 'md' | 'lg' }) {
   return (
-    <p className="flex items-baseline gap-1">
-      <span className="text-3xl font-semibold tracking-tight text-foreground">{state.price}</span>
+    <p className="flex flex-wrap items-baseline gap-x-1.5">
+      <span
+        className={`font-semibold tracking-tight text-foreground ${
+          size === 'lg' ? 'text-4xl' : 'text-3xl'
+        }`}
+      >
+        {state.price}
+      </span>
       {state.suffix ? (
         <span className="text-sm text-muted-foreground">{state.suffix}</span>
       ) : null}
@@ -236,49 +242,82 @@ function Price({ state }: { state: PlanState }) {
   );
 }
 
+function CheckIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="mt-0.5 size-4 shrink-0 text-foreground"
+    >
+      <circle cx="10" cy="10" r="8.25" className="opacity-40" />
+      <path d="m6.5 10.25 2.25 2.25L13.5 7.75" />
+    </svg>
+  );
+}
+
 function PlanCards({ states, text, busy, onSelect }: LayoutProps) {
   return (
     <ul
-      className="grid list-none gap-4 p-0 sm:grid-cols-2 lg:grid-cols-[repeat(auto-fit,minmax(15rem,1fr))]"
+      className="grid list-none gap-x-4 gap-y-5 p-0 sm:grid-cols-2 md:grid-cols-[repeat(var(--lungor-plans),minmax(0,1fr))]"
+      style={{ '--lungor-plans': states.length } as CSSProperties}
       role="list"
     >
-      {states.map((state) => (
-        <li
-          key={state.plan.code}
-          className={`flex flex-col gap-4 rounded-lg border bg-background p-6 ${
-            state.plan.highlighted ? 'border-primary ring-1 ring-primary' : 'border-input'
-          }`}
-        >
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center justify-between gap-2">
-              <h3 className="text-base font-medium text-foreground">{state.plan.name}</h3>
-              {state.plan.highlighted ? (
-                <span className="rounded-full bg-primary px-2 py-0.5 text-xs font-medium text-primary-foreground">
-                  {text.highlight}
-                </span>
+      {states.map((state) => {
+        const features = state.plan.features ?? [];
+        return (
+          <li
+            key={state.plan.code}
+            className={`row-span-4 grid grid-rows-subgrid rounded-xl border bg-background p-5 lg:p-6 ${
+              state.plan.highlighted
+                ? 'border-primary shadow-lg shadow-primary/10 ring-1 ring-primary'
+                : 'border-input'
+            }`}
+          >
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-start justify-between gap-3">
+                <h3 className="text-lg font-semibold text-foreground">{state.plan.name}</h3>
+                {state.plan.highlighted ? (
+                  <span className="shrink-0 rounded-full bg-primary px-2.5 py-0.5 text-xs font-medium text-primary-foreground">
+                    {text.highlight}
+                  </span>
+                ) : null}
+              </div>
+              {state.plan.description ? (
+                <p className="text-sm leading-relaxed text-muted-foreground">
+                  {state.plan.description}
+                </p>
               ) : null}
             </div>
-            <Price state={state} />
-          </div>
 
-          {state.allocations.length > 0 || (state.plan.features ?? []).length > 0 ? (
-            <ul className="flex flex-1 flex-col gap-2 text-sm text-muted-foreground">
-              {state.allocations.map((line) => (
-                <li key={line} className="font-medium text-foreground">
-                  {line}
+            <div className="flex flex-col gap-2">
+              <Price state={state} size="lg" />
+              {state.allocations.length > 0 ? (
+                <ul className="flex flex-col gap-0.5 text-sm font-medium text-foreground">
+                  {state.allocations.map((line) => (
+                    <li key={line}>{line}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+
+            <ul className="flex flex-col gap-2.5 border-t border-input pt-5 text-sm text-foreground">
+              {features.map((feature) => (
+                <li key={feature} className="flex items-start gap-2.5">
+                  <CheckIcon />
+                  <span>{feature}</span>
                 </li>
               ))}
-              {(state.plan.features ?? []).map((feature) => (
-                <li key={feature}>{feature}</li>
-              ))}
             </ul>
-          ) : (
-            <div className="flex-1" />
-          )}
 
-          <PlanAction state={state} busy={busy} onSelect={onSelect} text={text} />
-        </li>
-      ))}
+            <PlanAction state={state} busy={busy} onSelect={onSelect} text={text} />
+          </li>
+        );
+      })}
     </ul>
   );
 }

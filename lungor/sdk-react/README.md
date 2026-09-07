@@ -42,7 +42,12 @@ Set `layout="table"` for a row-by-row comparison, which reads best at two or
 three plans; the default `"cards"` grid holds up at any count.
 
 Units are data, never hard-coded: pass `formatUnit` to render `credit`,
-`synthesis` or `email` the way your shoppers read it.
+`synthesis` or `email` the way your shoppers read it. A plan's `description` is
+its one-line tagline under the name ("Pour une veille personnelle régulière."),
+and `features` are its selling points, each rendered with a check mark.
+
+In the `cards` layout every plan sits on one row from the `md` breakpoint, so
+the container's width decides how much room each card gets.
 
 Every label has a French default and is overridable through `labels`, `heading`
 and `description`.
@@ -74,6 +79,17 @@ Tailwind on the shadcn design tokens (`bg-background`, `border-input`, `ring`,
 host app's theme — including dark mode — without depending on which shadcn
 components that app happens to have copied in. React is the only runtime
 dependency.
+
+The package ships class names, not CSS: the host app's Tailwind build has to
+see them. Tailwind's source detection honours `.gitignore`, so `node_modules`
+is never scanned on its own and every class the host app does not already use
+elsewhere gets purged — the grid falls back to whatever columns survived.
+Declare the package as a source in your stylesheet:
+
+```css
+@import "tailwindcss";
+@source "../node_modules/@lalternative/lungor-sdk-react/dist";
+```
 
 ## Apple Pay
 
