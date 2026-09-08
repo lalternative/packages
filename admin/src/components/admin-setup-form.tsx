@@ -10,11 +10,16 @@ import {
   LABEL,
 } from "../styles"
 
+const MIN_PASSWORD_LENGTH = 8
+
 const DEFAULT_LABELS: AdminSetupLabels = {
   name: "Nom",
   email: "Email",
   password: "Mot de passe",
   passwordHint: "Min. 8 caractères",
+  confirmPassword: "Confirmer le mot de passe",
+  passwordTooShort: `Le mot de passe doit faire au moins ${MIN_PASSWORD_LENGTH} caractères`,
+  passwordMismatch: "Les deux mots de passe ne correspondent pas",
   submit: "Créer le compte admin",
   submitting: "Création…",
   created: "Compte administrateur créé.",
@@ -59,6 +64,7 @@ export function AdminSetupForm({
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
   const [code, setCode] = useState("")
   const [step, setStep] = useState<"details" | "code">("details")
   const [submitting, setSubmitting] = useState(false)
@@ -66,9 +72,7 @@ export function AdminSetupForm({
   const [done, setDone] = useState(false)
 
   const create = async () => {
-    await onSubmit(
-      onRequestCode ? { name, email, password, code } : { name, email, password },
-    )
+    await onSubmit({ name, email, password, code })
     setDone(true)
     await onSuccess?.()
   }
@@ -76,11 +80,21 @@ export function AdminSetupForm({
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setError(null)
+
+    if (step === "details") {
+      if (password.length < MIN_PASSWORD_LENGTH) {
+        setError(t.passwordTooShort)
+        return
+      }
+      if (password !== confirmPassword) {
+        setError(t.passwordMismatch)
+        return
+      }
+    }
+
     setSubmitting(true)
     try {
-      // Without a mailer the details step IS the whole form, and this stays the
-      // single-step component it has always been.
-      if (onRequestCode && step === "details") {
+      if (step === "details") {
         await onRequestCode(email)
         setStep("code")
         return
@@ -94,7 +108,6 @@ export function AdminSetupForm({
   }
 
   const resend = async () => {
-    if (!onRequestCode) return
     setError(null)
     setSubmitting(true)
     try {
@@ -227,15 +240,25 @@ export function AdminSetupForm({
           />
         </div>
 
+        <div className="space-y-1.5">
+          <label htmlFor="setup-confirm-password" className={LABEL}>
+            {t.confirmPassword}
+          </label>
+          <input
+            id="setup-confirm-password"
+            type="password"
+            required
+            minLength={MIN_PASSWORD_LENGTH}
+            autoComplete="new-password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            className={INPUT}
+          />
+        </div>
+
         <button type="submit" disabled={submitting} className={BUTTON_PRIMARY}>
           {icon}
-          {submitting
-            ? onRequestCode
-              ? t.sendingCode
-              : t.submitting
-            : onRequestCode
-              ? t.sendCode
-              : t.submit}
+          {submitting ? t.sendingCode : t.sendCode}
         </button>
           </>
         )}
