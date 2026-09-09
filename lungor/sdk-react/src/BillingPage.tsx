@@ -98,7 +98,9 @@ export interface BillingPageProps {
   onWithdrawPendingPlan?: () => void;
   /** Called once the returned checkout reads as paid: refresh the subscription. */
   onPaid?: (session: CheckoutSession) => void;
-  /** Strips the checkout parameters from the URL and stays. */
+  /** Pressed on a confirmed payment: back into the app, typically its home. */
+  onContinue?: (session: CheckoutSession) => void;
+  /** Leaves an unpaid ending alone: strips the checkout parameters and stays. */
   onLeaveCheckoutReturn?: () => void;
   /**
    * A plan code handed over by the public pricing page (`?plan=`), for which
@@ -156,6 +158,7 @@ export function BillingPage({
   onResume,
   onWithdrawPendingPlan,
   onPaid,
+  onContinue,
   onLeaveCheckoutReturn,
   requestedPlanCode,
   busy = false,
@@ -208,7 +211,7 @@ export function BillingPage({
         variant="hero"
         fetchSession={fetchSession}
         onPaid={onPaid}
-        onContinue={onLeaveCheckoutReturn}
+        onContinue={onContinue ?? onLeaveCheckoutReturn}
         onDismiss={onLeaveCheckoutReturn}
         onRetry={() =>
           document.getElementById('lungor-plans')?.scrollIntoView({ behavior: 'smooth' })

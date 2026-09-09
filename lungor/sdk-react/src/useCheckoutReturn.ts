@@ -34,7 +34,11 @@ export interface UseCheckoutReturnOptions {
   onPaid?: (session: CheckoutSession) => void;
   /** How often to ask again while the checkout is in flight. Defaults to 2s. */
   pollIntervalMs?: number;
-  /** How long to keep asking before giving up on a confirmation. Defaults to 60s. */
+  /**
+   * How long to keep asking before giving up on a confirmation. Defaults to
+   * 20s: long enough for a card notification, short enough that a payer
+   * watching a spinner learns the answer is not coming yet.
+   */
   timeoutMs?: number;
 }
 
@@ -65,7 +69,7 @@ export function useCheckoutReturn({
   sessionId: givenSessionId,
   onPaid,
   pollIntervalMs = 2000,
-  timeoutMs = 60000,
+  timeoutMs = 20000,
 }: UseCheckoutReturnOptions): CheckoutReturnState {
   const [sessionId, setSessionId] = useState<string | undefined>(givenSessionId);
   const [phase, setPhase] = useState<CheckoutReturnPhase>(givenSessionId ? 'checking' : 'idle');
