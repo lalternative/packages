@@ -224,3 +224,42 @@ func TestRemoteVoiceSpeakStreamNamedSendsTheID(t *testing.T) {
 		t.Fatalf("mime=%q pieces=%v", mime, pieces)
 	}
 }
+
+func TestRemoteVoiceSendsTheAppKeyOnEveryCall(t *testing.T) {
+	var keys []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		keys = append(keys, r.Header.Get(HeaderAppKey))
+		w.Header().Set("Content-Type", "audio/mpeg")
+		w.Write([]byte("audio"))
+	}))
+	defer srv.Close()
+
+	v := NewRemoteVoice(RemoteConfig{BaseURL: srv.URL, AppKey: "an-app-key"})
+	if _, _, err := v.Speak(context.Background(), "bonjour"); err != nil {
+		t.Fatal(err)
+	}
+	if err := v.PrimeOpening(context.Background(), "msg-1", "bonjour"); err != nil {
+		t.Fatal(err)
+	}
+	if len(keys) != 2 || keys[0] != "an-app-key" || keys[1] != "an-app-key" {
+		t.Fatalf("app keys sent = %q, want it on both calls", keys)
+	}
+}
+
+func TestRemoteVoiceSendsNoAppKeyHeaderWithoutOne(t *testing.T) {
+	var present bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, present = r.Header[HeaderAppKey]
+		w.Header().Set("Content-Type", "audio/mpeg")
+		w.Write([]byte("audio"))
+	}))
+	defer srv.Close()
+
+	v := NewRemoteVoice(RemoteConfig{BaseURL: srv.URL})
+	if _, _, err := v.Speak(context.Background(), "bonjour"); err != nil {
+		t.Fatal(err)
+	}
+	if present {
+		t.Fatal("an empty app key was sent as a header")
+	}
+}

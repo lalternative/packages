@@ -3,6 +3,7 @@ packages:
   - "spore/*"
   - "lalter/*"
   - "lungor/*"
+  - "tornade/*"
   - "auth"
   - "legal"
   - "admin"

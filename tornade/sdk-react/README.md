@@ -1,0 +1,24 @@
+# @lalternative/tornade-sdk-react
+
+Plays a tornade reading in the browser, straight from tornade, on a URL the
+application's server signed. The server never relays audio: it primes the
+opening when the text is produced, signs one URL per press, and the bytes go
+from tornade to the listener.
+
+```tsx
+import { speakSource, useVoicePlayback } from '@lalternative/tornade-sdk-react'
+
+function PlayButton({ messageId }: { messageId: string }) {
+  const resolve = useCallback(async () => {
+    const res = await fetch(`${API}/messages/${messageId}/audio`, { credentials: 'include' })
+    const { url, text } = await res.json()
+    return speakSource({ url, text, scope: 'chat-message', id: messageId })
+  }, [messageId])
+  const { state, toggle } = useVoicePlayback(resolve)
+  if (state === 'unavailable') return null
+  return <button onClick={toggle}>{state === 'playing' ? 'Pause' : 'Play'}</button>
+}
+```
+
+The server side is `go/tts`: `RemoteVoice.PrimeOpening` with an `AppKey`, and
+`signed.Signer.URL` for the URL the endpoint above returns.

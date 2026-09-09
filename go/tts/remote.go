@@ -24,10 +24,17 @@ type RemoteConfig struct {
 	// sharing one tornade do not overwrite each other's cache. Empty leaves
 	// the naming to tornade's default.
 	Scope string
+	// AppKey authenticates server-to-server calls on a tornade that is
+	// reachable from the internet, where a signature only ever buys one
+	// listen. Empty sends nothing, which an internal-only tornade accepts.
+	AppKey string
 	// Client defaults to one with no global timeout, same as OpenAIVoice: a
 	// long reading can take minutes, and cancellation belongs to the context.
 	Client *http.Client
 }
+
+// HeaderAppKey carries AppKey; tornade reads the same name.
+const HeaderAppKey = "X-Tornade-Key"
 
 // RemoteVoice reads text through a tornade instance instead of a speech
 // service directly. Tornade owns the synthesis, the cache and the store, so
@@ -192,6 +199,9 @@ func (v *RemoteVoice) post(ctx context.Context, path string, payload map[string]
 		return nil, fmt.Errorf("tts: build request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	if v.cfg.AppKey != "" {
+		req.Header.Set(HeaderAppKey, v.cfg.AppKey)
+	}
 	resp, err := v.cfg.Client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("tts: call: %w", err)
