@@ -151,6 +151,16 @@ export function CheckoutOutcome({
     if (onRetry && session) primary = { label: l.retryCta, run: () => onRetry(session) };
     if (onDismiss && session) secondary = { label: l.dismissCta, run: () => onDismiss(session) };
   };
+  // A payer who has understood that a transfer settles in days must be able
+  // to leave the page cleanly; the same holds when the read itself failed.
+  const inFlight: CheckoutSession = session ?? {
+    sessionId: state.sessionId ?? '',
+    status: 'redirected',
+    paid: false,
+  };
+  const leaveLater = () => {
+    if (onDismiss) secondary = { label: l.dismissCta, run: () => onDismiss(inFlight) };
+  };
 
   switch (phase) {
     case 'completed':
@@ -177,11 +187,13 @@ export function CheckoutOutcome({
       title = l.timeout;
       detail = l.timeoutDetail;
       primary = { label: l.refreshCta, run: state.retry };
+      leaveLater();
       break;
     case 'error':
       title = l.error;
       detail = l.errorDetail;
       primary = { label: l.refreshCta, run: state.retry };
+      leaveLater();
       break;
   }
 

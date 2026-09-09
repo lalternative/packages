@@ -160,7 +160,7 @@ is opened on `paid`, never on the redirect alone.
 | `failed` | « Paiement refusé » + the reason, when it is one the payer can act on | `onRetry`, `onDismiss` |
 | `canceled` | « Paiement annulé » | `onRetry`, `onDismiss` |
 | `expired` | « Session expirée » | `onRetry`, `onDismiss` |
-| still in flight after `timeoutMs` (20s) | « Confirmation en attente » | asks again |
+| still in flight after `timeoutMs` (20s) | « Confirmation en attente » | asks again, `onDismiss` |
 
 `useCheckoutReturn` is the same logic without the markup, for a page that
 renders its own. `readCheckoutSessionId()` reads the id from the URL on its own.
