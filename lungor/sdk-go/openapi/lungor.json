@@ -240,6 +240,16 @@
                                 }
                             }
                         }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/echo.HTTPError"
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -6307,7 +6317,12 @@
                         "description": "PaymentMethod preselects how the payer pays (\"card\", \"bank_transfer\").\nOmitted, the provider's own selection screen decides, which is what every\ncaller got before the field existed.",
                         "type": "string"
                     },
+                    "plan_code": {
+                        "description": "PlanCode names the plan by the code the tenant gave it — what the\ndashboard's Catalogue shows, and the only handle an integrator has\nwithout digging an id out of the API. Resolved within the app the key\nproved, where UNIQUE (app_id, code) makes it as precise as an id.",
+                        "type": "string"
+                    },
                     "price_id": {
+                        "description": "PriceID names the same plan by id. Kept for callers integrated before\nplan_code existed; one of the two is required, and stating both is\nrefused when they disagree.",
                         "type": "string"
                     },
                     "success_url": {
@@ -6917,12 +6932,27 @@
                             "format": "int64"
                         }
                     },
+                    "cancel_at_period_end": {
+                        "description": "CancelAtPeriodEnd is true once the customer asked to stop: access runs to\nCurrentPeriodEnd and no renewal follows.",
+                        "type": "boolean"
+                    },
                     "current_period_end": {
                         "description": "CurrentPeriodEnd is when the period already paid for runs out — the date\nentitlement turns on, and the one a caller shows as \"active until\".\n\nSent so a consumer stops keeping its own copy: this date reaches an app\nthrough the subscription webhook and nowhere else, so an app that does not\npersist it cannot answer the question at all, and one that does is holding\na projection that a missed delivery leaves stale.",
                         "type": "string"
                     },
+                    "current_period_start": {
+                        "description": "The rest of what a subscription page shows, for the same reason: an app\nthat had to keep its own subscriptions row to answer \"renews on\", \"cancels\nat period end\" or \"moves to Solo on the 17th\" holds a projection Lungor\nalready owns, and the two drift the first time a delivery is missed.",
+                        "type": "string"
+                    },
                     "entitled": {
                         "type": "boolean"
+                    },
+                    "pending_plan_code": {
+                        "description": "PendingPlanCode is a smaller plan the customer scheduled, applied at\nPendingPlanEffectiveAt. Empty when nothing is scheduled.",
+                        "type": "string"
+                    },
+                    "pending_plan_effective_at": {
+                        "type": "string"
                     },
                     "plan_code": {
                         "type": "string"

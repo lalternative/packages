@@ -251,9 +251,19 @@ type FinanceCheckoutRequest struct {
 	// Omitted, the provider's own selection screen decides, which is what every
 	// caller got before the field existed.
 	PaymentMethod *string `json:"payment_method,omitempty"`
-	PriceId       *string `json:"price_id,omitempty"`
-	SuccessUrl    *string `json:"success_url,omitempty"`
-	TenantId      *string `json:"tenant_id,omitempty"`
+
+	// PlanCode PlanCode names the plan by the code the tenant gave it — what the
+	// dashboard's Catalogue shows, and the only handle an integrator has
+	// without digging an id out of the API. Resolved within the app the key
+	// proved, where UNIQUE (app_id, code) makes it as precise as an id.
+	PlanCode *string `json:"plan_code,omitempty"`
+
+	// PriceId PriceID names the same plan by id. Kept for callers integrated before
+	// plan_code existed; one of the two is required, and stating both is
+	// refused when they disagree.
+	PriceId    *string `json:"price_id,omitempty"`
+	SuccessUrl *string `json:"success_url,omitempty"`
+	TenantId   *string `json:"tenant_id,omitempty"`
 }
 
 // FinanceCheckoutResponse defines model for finance.checkoutResponse.
@@ -303,6 +313,10 @@ type FinanceClaimResp struct {
 type FinanceEntitlementResponse struct {
 	Balances *map[string]int64 `json:"balances,omitempty"`
 
+	// CancelAtPeriodEnd CancelAtPeriodEnd is true once the customer asked to stop: access runs to
+	// CurrentPeriodEnd and no renewal follows.
+	CancelAtPeriodEnd *bool `json:"cancel_at_period_end,omitempty"`
+
 	// CurrentPeriodEnd CurrentPeriodEnd is when the period already paid for runs out — the date
 	// entitlement turns on, and the one a caller shows as "active until".
 	//
@@ -311,10 +325,21 @@ type FinanceEntitlementResponse struct {
 	// persist it cannot answer the question at all, and one that does is holding
 	// a projection that a missed delivery leaves stale.
 	CurrentPeriodEnd *string `json:"current_period_end,omitempty"`
-	Entitled         *bool   `json:"entitled,omitempty"`
-	PlanCode         *string `json:"plan_code,omitempty"`
-	PlanRank         *int    `json:"plan_rank,omitempty"`
-	Status           *string `json:"status,omitempty"`
+
+	// CurrentPeriodStart The rest of what a subscription page shows, for the same reason: an app
+	// that had to keep its own subscriptions row to answer "renews on", "cancels
+	// at period end" or "moves to Solo on the 17th" holds a projection Lungor
+	// already owns, and the two drift the first time a delivery is missed.
+	CurrentPeriodStart *string `json:"current_period_start,omitempty"`
+	Entitled           *bool   `json:"entitled,omitempty"`
+
+	// PendingPlanCode PendingPlanCode is a smaller plan the customer scheduled, applied at
+	// PendingPlanEffectiveAt. Empty when nothing is scheduled.
+	PendingPlanCode        *string `json:"pending_plan_code,omitempty"`
+	PendingPlanEffectiveAt *string `json:"pending_plan_effective_at,omitempty"`
+	PlanCode               *string `json:"plan_code,omitempty"`
+	PlanRank               *int    `json:"plan_rank,omitempty"`
+	Status                 *string `json:"status,omitempty"`
 }
 
 // FinanceInvitationView defines model for finance.invitationView.
@@ -3304,6 +3329,7 @@ type CheckoutResponse struct {
 	JSON400      *EchoHTTPError
 	JSON401      *EchoHTTPError
 	JSON403      *EchoHTTPError
+	JSON404      *EchoHTTPError
 }
 
 // Status returns HTTPResponse.Status
@@ -4637,6 +4663,13 @@ func ParseCheckoutResponse(rsp *http.Response) (*CheckoutResponse, error) {
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest EchoHTTPError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	}
 
