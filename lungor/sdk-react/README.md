@@ -72,6 +72,39 @@ import { CheckoutMethodPicker } from '@lalternative/lungor-sdk-react';
 `onSelect` hands back the method id verbatim; send it as `payment_method` on
 `POST /finance/checkout`, then redirect to the `redirect_url` you get back.
 
+## BillingPage
+
+The one billing page every app mounts on `BILLING_PATH` (`/billing`), and the
+one every checkout returns to. Three things, top to bottom: how the checkout
+the user just returned from ended, the plan they hold, and the plans they can
+move to. The app supplies data and callbacks; the page is the same everywhere.
+
+```tsx
+import { BillingPage } from '@lalternative/lungor-sdk-react';
+
+<BillingPage
+  plans={plans}                       // GET /finance/plans, through your backend
+  subscription={entitlement}          // GET /entitlements, through your backend
+  fetchSession={(id) => api.getCheckoutSession(id)}
+  onCheckout={(plan) => startCheckout(plan.id)}
+  onChangePlan={(plan) => changePlan(plan.code)}
+  onCancel={cancel}
+  onResume={resume}
+  onWithdrawPendingPlan={withdraw}
+  onPaid={() => queryClient.invalidateQueries({ queryKey: ['entitlement'] })}
+  onLeaveCheckoutReturn={() => router.navigate({ to: '/billing', search: {} })}
+/>;
+```
+
+`subscription` is Lungor's entitlement read as is: `entitled`, `status`,
+`planCode`, the period, `cancelAtPeriodEnd`, and the pending plan with its
+date. Everything the page shows travels on that read, so the app keeps no
+subscriptions row of its own.
+
+The page is authenticated: a checkout needs a user to attach the payment to.
+The public pricing page hands a chosen plan over as `?plan=<code>` after
+sign-up, and the page opens its checkout on arrival.
+
 ## CheckoutOutcome
 
 The provider's redirect says nothing about the outcome: Mollie sends the payer
