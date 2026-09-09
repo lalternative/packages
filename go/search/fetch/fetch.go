@@ -22,6 +22,10 @@ const (
 	// browser, since some sites otherwise serve different (often lighter,
 	// JS-only) markup.
 	fetchUserAgent = "Mozilla/5.0 (compatible; SearchLib/1.0; +https://github.com/lalternative/packages)"
+
+	// fetchTimeout bounds one page fetch. It is generous because a proxied
+	// request adds the proxy's own hop to whatever the origin takes.
+	fetchTimeout = 20 * time.Second
 )
 
 // Page is the extracted content of one fetched URL.
@@ -94,8 +98,7 @@ func httpGet(ctx context.Context, rawURL string) (io.ReadCloser, error) {
 	req.Header.Set("User-Agent", fetchUserAgent)
 	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
 
-	client := &http.Client{Timeout: 12 * time.Second}
-	resp, err := client.Do(req)
+	resp, err := httpClient(fetchTimeout).Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("fetch page: %w", err)
 	}
