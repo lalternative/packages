@@ -93,6 +93,23 @@ import { CheckoutOutcome } from '@lalternative/lungor-sdk-react';
 />;
 ```
 
+Send the checkout back to the **plans page**, never to the home page: it is
+the one page where every ending makes sense. Paid, the grid shows the new
+current plan; refused or abandoned, the grid sits right under the message and
+the customer tries again without navigating. There, use `variant="hero"`,
+which heads the page; the default `banner` fits inside one.
+
+```tsx
+<CheckoutOutcome
+  variant="hero"
+  fetchSession={(id) => api.getCheckoutSession(id)}
+  onPaid={() => queryClient.invalidateQueries({ queryKey: ['entitlement'] })}
+  onContinue={() => router.navigate({ to: '/app' })}
+  onRetry={() => document.getElementById('plans')?.scrollIntoView({ behavior: 'smooth' })}
+  onDismiss={() => router.navigate({ to: '/plans', search: {} })}
+/>;
+```
+
 It polls while the status is `pending` or `redirected`: the provider's
 notification can land a few seconds after the payer does, and a page that read
 `redirected` as a failure would refuse someone whose card was accepted. Access
@@ -102,9 +119,9 @@ is opened on `paid`, never on the redirect alone.
 |---|---|---|
 | `pending`, `redirected` | « Vérification du paiement… » | — |
 | `completed` | « Paiement confirmé » | `onContinue` |
-| `failed` | « Paiement refusé » + the reason, when it is one the payer can act on | `onRetry` |
-| `canceled` | « Paiement annulé » | `onRetry` |
-| `expired` | « Session expirée » | `onRetry` |
+| `failed` | « Paiement refusé » + the reason, when it is one the payer can act on | `onRetry`, `onDismiss` |
+| `canceled` | « Paiement annulé » | `onRetry`, `onDismiss` |
+| `expired` | « Session expirée » | `onRetry`, `onDismiss` |
 | still in flight after `timeoutMs` (60s) | « Confirmation en attente » | asks again |
 
 `useCheckoutReturn` is the same logic without the markup, for a page that

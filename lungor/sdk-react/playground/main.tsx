@@ -48,6 +48,7 @@ function App() {
   const [ending, setEnding] = useState<CheckoutStatus>("failed")
   const [reason, setReason] = useState("insufficient_funds")
   const [run, setRun] = useState(0)
+  const [hero, setHero] = useState(true)
 
   const record = (line: string) => setLog((l) => [line, ...l].slice(0, 6))
 
@@ -114,6 +115,9 @@ function App() {
                 className="rounded-md border border-input bg-background px-2 py-1 font-mono text-xs"
               />
             </label>
+            <Toggle checked={hero} onChange={setHero}>
+              Variante hero
+            </Toggle>
             <button
               onClick={() => setRun((n) => n + 1)}
               className="rounded-md border border-input px-3 py-1 hover:bg-muted"
@@ -165,12 +169,14 @@ function App() {
           <CheckoutOutcome
             key={`${run}-${ending}-${reason}`}
             sessionId="sess_playground"
+            variant={hero ? "hero" : "banner"}
             fetchSession={fakeFetchSession(ending, reason)}
             pollIntervalMs={600}
             timeoutMs={4000}
             onPaid={(s) => record(`onPaid → ${s.sessionId}`)}
             onContinue={(s) => record(`onContinue → ${s.status}`)}
             onRetry={(s) => record(`onRetry → ${s.status}${s.failureReason ? ` (${s.failureReason})` : ""}`)}
+            onDismiss={(s) => record(`onDismiss → ${s.status}`)}
           />
         )}
       </main>
