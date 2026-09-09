@@ -312,6 +312,74 @@
                 }
             }
         },
+        "/finance/checkout/{session_id}": {
+            "get": {
+                "security": [
+                    {
+                        "AppKeyAuth": []
+                    }
+                ],
+                "description": "Reports whether the payment behind a checkout landed, computed from the database at call time. It is the fallback when the subscription webhook is late or missed: call it on the success page, and open access on paid rather than on the redirect alone. A session of another app reads as not found.",
+                "tags": [
+                    "checkout"
+                ],
+                "summary": "Read a checkout session the app opened",
+                "operationId": "getCheckoutSession",
+                "parameters": [
+                    {
+                        "description": "Checkout session ID",
+                        "name": "session_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/finance.checkoutSessionResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/echo.HTTPError"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/echo.HTTPError"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/echo.HTTPError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/finance/webhooks/payplug/{cred_id}": {
             "post": {
                 "tags": [
@@ -6188,7 +6256,6 @@
                 }
             },
             "finance.checkoutMethodView": {
-                "description": "Reports whether the payment behind a checkout landed, computed from the database at call time. It is the fallback when the subscription webhook is late or missed: call it on the success page, and open access on paid rather than on the redirect alone. A session of another app reads as not found.",
                 "type": "object",
                 "properties": {
                     "id": {
@@ -6261,6 +6328,44 @@
                         "type": "string"
                     },
                     "subscription_id": {
+                        "type": "string"
+                    }
+                }
+            },
+            "finance.checkoutSessionResponse": {
+                "type": "object",
+                "properties": {
+                    "created_at": {
+                        "type": "string"
+                    },
+                    "expires_at": {
+                        "type": "string"
+                    },
+                    "external_user_id": {
+                        "type": "string"
+                    },
+                    "failure_reason": {
+                        "description": "FailureReason is the provider's own word for a refusal (Mollie:\ninsufficient_funds, invalid_card_number…). Set on failed only.",
+                        "type": "string"
+                    },
+                    "paid": {
+                        "description": "Paid is true once the provider settled the payment: for a one_off plan it\nis the whole answer, for a recurring one the subscription is active too.",
+                        "type": "boolean"
+                    },
+                    "plan_id": {
+                        "type": "string"
+                    },
+                    "session_id": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "description": "Status is pending, redirected, completed, failed, canceled or expired.\npending and redirected are still in flight; the other four are final.",
+                        "type": "string"
+                    },
+                    "subscription_id": {
+                        "type": "string"
+                    },
+                    "subscription_status": {
                         "type": "string"
                     }
                 }
@@ -6407,6 +6512,11 @@
                     },
                     "name": {
                         "type": "string"
+                    },
+                    "visibility": {
+                        "description": "Visibility defaults to public when omitted. \"staff\" creates a tier Grant\ncan award but no catalogue lists and no checkout accepts.",
+                        "type": "string",
+                        "example": "public"
                     }
                 }
             },
@@ -7130,6 +7240,10 @@
                     },
                     "name": {
                         "type": "string"
+                    },
+                    "visibility": {
+                        "type": "string",
+                        "example": "public"
                     }
                 }
             },
@@ -7509,6 +7623,11 @@
                     "name": {
                         "type": "string",
                         "example": "Pro"
+                    },
+                    "visibility": {
+                        "description": "Visibility moves a plan between the public catalogue and the staff-only\none. Distinct from Active on purpose: a staff plan stays active, since\ndeactivating it would stop Grant from awarding it too.",
+                        "type": "string",
+                        "example": "staff"
                     }
                 }
             },
