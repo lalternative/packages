@@ -83,6 +83,24 @@ carries shell boilerplate (nav, footer) that readability extracts a few dozen
 runes from, which is not an article. Pass `nil` for `renderer` to skip this
 entirely; `FetchWithFallback` then behaves exactly like `FetchStatic`.
 
+### Reading a page a publisher refuses
+
+```go
+fetch.UseProxy(os.Getenv("FETCH_PROXY"))   // once, at startup
+```
+
+Publishers behind bot management refuse a datacenter address whatever headers
+it carries: a browser User-Agent from inside a cloud network is refused
+exactly like an honest one, and no header, cookie or delay lifts a verdict
+that was reached on the IP. A residential proxy is the only thing that
+changes the answer, which is why this is deployment-wide state rather than a
+per-call option — every caller wants it once it is configured.
+
+An empty value clears it and fetches direct; an unparseable one is refused, so
+a typo is loud at startup rather than a silent return to being blocked.
+`ProxyState` and `RedactProxySecrets` exist because the value carries
+credentials and upstream errors quote it back.
+
 `rendersvc.Client` implements `Renderer` against a small standalone
 JavaScript-rendering service (a single `POST /render` endpoint backed by a
 headless browser). That service is not part of this module: it owns a
