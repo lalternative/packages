@@ -96,6 +96,10 @@ import { BillingPage } from '@lalternative/lungor-sdk-react';
 />;
 ```
 
+`formatUnit` renders an allowance on the grid ("100 crédits par mois");
+`formatBalance` renders what remains of a unit on the current plan ("12
+crédits"). They are kept apart because a balance is not "per period".
+
 `subscription` is Lungor's entitlement read as is: `entitled`, `status`,
 `planCode`, the period, `cancelAtPeriodEnd`, and the pending plan with its
 date. Everything the page shows travels on that read, so the app keeps no

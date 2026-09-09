@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { CheckoutOutcome, type CheckoutOutcomeLabels } from './CheckoutOutcome.js';
 import { readCheckoutSessionId, type CheckoutSession } from './checkout.js';
-import { formatPrice, isFreePlan, type PricingAllocation, type PricingPlan } from './plans.js';
+import {
+  formatPrice,
+  intervalSuffix,
+  isFreePlan,
+  type PricingAllocation,
+  type PricingPlan,
+} from './plans.js';
 import { PricingTable, type PricingIntent, type PricingTableLabels } from './PricingTable.js';
 
 /**
@@ -101,7 +107,13 @@ export interface BillingPageProps {
   requestedPlanCode?: string | null;
   busy?: boolean;
   locale?: string;
+  /** Renders a plan's allowance on the grid (`credit` → "100 crédits par mois"). */
   formatUnit?: (allocation: PricingAllocation) => string;
+  /**
+   * Renders what remains of a unit on the current plan ("12 crédits"). Kept
+   * apart from formatUnit: an allowance reads "per period", a balance does not.
+   */
+  formatBalance?: (unit: string, amount: number) => string;
   labels?: BillingPageLabels;
   outcomeLabels?: CheckoutOutcomeLabels;
   pricingLabels?: PricingTableLabels;
@@ -149,6 +161,7 @@ export function BillingPage({
   busy = false,
   locale,
   formatUnit,
+  formatBalance,
   labels,
   outcomeLabels,
   pricingLabels,
@@ -230,8 +243,8 @@ export function BillingPage({
               </p>
               {current ? (
                 <p className="text-sm text-muted-foreground">
-                  {current.priceLabel ?? formatPrice(current.amount, current.currency, locale)}
-                  {current.interval ? ` / ${current.interval}` : ''}
+                  {current.priceLabel ??
+                    formatPrice(current.amount, current.currency, locale) + intervalSuffix(current)}
                 </p>
               ) : null}
             </div>
@@ -253,7 +266,7 @@ export function BillingPage({
                   <p key={unit} className="text-sm text-muted-foreground">
                     {l.remaining}{' '}
                     <span className="font-medium text-foreground">
-                      {formatUnit ? formatUnit({ unit, amount }) : `${amount} ${unit}`}
+                      {formatBalance ? formatBalance(unit, amount) : `${amount} ${unit}`}
                     </span>
                   </p>
                 ))
