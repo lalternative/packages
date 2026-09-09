@@ -53,7 +53,14 @@ func NewRemoteVoice(cfg RemoteConfig) *RemoteVoice {
 }
 
 func (v *RemoteVoice) Speak(ctx context.Context, text string) ([]byte, string, error) {
-	resp, err := v.speak(ctx, text, false)
+	return v.SpeakNamed(ctx, "", text)
+}
+
+// SpeakNamed reads text under a name, so a reading primed or pregenerated
+// earlier under that same name is the one served. An empty id has tornade key
+// the reading on the text alone, which is what Speak does.
+func (v *RemoteVoice) SpeakNamed(ctx context.Context, id, text string) ([]byte, string, error) {
+	resp, err := v.speak(ctx, id, text, false)
 	if err != nil {
 		return nil, "", err
 	}
@@ -69,7 +76,15 @@ func (v *RemoteVoice) Speak(ctx context.Context, text string) ([]byte, string, e
 }
 
 func (v *RemoteVoice) SpeakStream(ctx context.Context, text string, emit func([]byte) error) (string, error) {
-	resp, err := v.speak(ctx, text, true)
+	return v.SpeakStreamNamed(ctx, "", text, emit)
+}
+
+// SpeakStreamNamed streams text under a name. It is the call that turns a
+// primed opening into something heard: tornade only serves an opening read
+// ahead of time on the streaming path, so a caller that primed and then asks
+// whole pays for the opening twice and waits for all of it.
+func (v *RemoteVoice) SpeakStreamNamed(ctx context.Context, id, text string, emit func([]byte) error) (string, error) {
+	resp, err := v.speak(ctx, id, text, true)
 	if err != nil {
 		return "", err
 	}
@@ -136,12 +151,35 @@ func (v *RemoteVoice) Pregenerate(ctx context.Context, id, text string) error {
 	return nil
 }
 
-func (v *RemoteVoice) speak(ctx context.Context, text string, stream bool) (*http.Response, error) {
-	return v.post(ctx, "/speak", map[string]any{
+// PrimeOpening asks tornade to read only the start of text and keep it, ahead
+// of any listener: one request that buys the seconds before play, where
+// Pregenerate pays for the whole text on the chance that someone listens.
+// Tornade acknowledges before the reading starts, so a nil return means
+// scheduled, not stored. id is required: an opening nobody can name again is
+// one no listener will ever be served.
+func (v *RemoteVoice) PrimeOpening(ctx context.Context, id, text string) error {
+	resp, err := v.post(ctx, "/speak/prime", map[string]any{
+		"text":  text,
+		"scope": v.cfg.Scope,
+		"id":    id,
+	})
+	if err != nil {
+		return err
+	}
+	resp.Body.Close()
+	return nil
+}
+
+func (v *RemoteVoice) speak(ctx context.Context, id, text string, stream bool) (*http.Response, error) {
+	payload := map[string]any{
 		"text":   text,
 		"scope":  v.cfg.Scope,
 		"stream": stream,
-	})
+	}
+	if id != "" {
+		payload["id"] = id
+	}
+	return v.post(ctx, "/speak", payload)
 }
 
 func (v *RemoteVoice) post(ctx context.Context, path string, payload map[string]any) (*http.Response, error) {

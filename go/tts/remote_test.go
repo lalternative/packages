@@ -52,6 +52,9 @@ func TestRemoteVoiceSpeak(t *testing.T) {
 	if got["text"] != "bonjour" || got["scope"] != "chat" || got["stream"] != false {
 		t.Fatalf("request body = %v", got)
 	}
+	if _, named := got["id"]; named {
+		t.Fatalf("request body = %v, want no id: an unnamed reading is keyed on its text alone", got)
+	}
 }
 
 func TestRemoteVoiceSpeakStreamFrames(t *testing.T) {
@@ -134,5 +137,90 @@ func TestRemoteVoicePregenerate(t *testing.T) {
 	}
 	if got["id"] != "abc123" || got["scope"] != "writing-live" || got["text"] != "le texte" {
 		t.Fatalf("request body = %v", got)
+	}
+}
+
+func TestRemoteVoicePrimeOpening(t *testing.T) {
+	var got map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/speak/prime" {
+			t.Errorf("path = %q, want /speak/prime — pregenerate would read the whole text", r.URL.Path)
+		}
+		json.NewDecoder(r.Body).Decode(&got)
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	defer srv.Close()
+
+	v := NewRemoteVoice(RemoteConfig{BaseURL: srv.URL, Scope: "chat-message"})
+	if err := v.PrimeOpening(context.Background(), "msg-1", "le texte"); err != nil {
+		t.Fatal(err)
+	}
+	// Priming means naming ahead of time what will be listened to: without
+	// the id the opening could never be found again.
+	if got["id"] != "msg-1" || got["scope"] != "chat-message" || got["text"] != "le texte" {
+		t.Fatalf("request body = %v", got)
+	}
+}
+
+// A reading asked for by name is what finds one primed under that name.
+func TestRemoteVoiceSpeakNamedSendsTheID(t *testing.T) {
+	var got map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewDecoder(r.Body).Decode(&got)
+		w.Header().Set("Content-Type", "audio/mpeg")
+		w.Write([]byte("audio"))
+	}))
+	defer srv.Close()
+
+	v := NewRemoteVoice(RemoteConfig{BaseURL: srv.URL, Scope: "chat-message"})
+	audio, mime, err := v.SpeakNamed(context.Background(), "msg-1", "le texte")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got["id"] != "msg-1" || got["scope"] != "chat-message" {
+		t.Fatalf("request body = %v, want the reading named", got)
+	}
+	if string(audio) != "audio" || mime != "audio/mpeg" {
+		t.Errorf("got (%q, %q)", audio, mime)
+	}
+}
+
+func TestRemoteVoicePrimeOpeningReportsAFailure(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, `{"error":"priming needs both speech and a store"}`, http.StatusServiceUnavailable)
+	}))
+	defer srv.Close()
+
+	v := NewRemoteVoice(RemoteConfig{BaseURL: srv.URL, Scope: "chat-message"})
+	if err := v.PrimeOpening(context.Background(), "msg-1", "le texte"); err == nil {
+		t.Fatal("a 503 must be reported so the caller can log it")
+	}
+}
+
+// Only a streamed listen is served a primed opening, so the named stream is
+// what makes priming pay: it must carry both the name and the stream flag.
+func TestRemoteVoiceSpeakStreamNamedSendsTheID(t *testing.T) {
+	var got map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewDecoder(r.Body).Decode(&got)
+		w.Header().Set("Content-Type", framesContentType)
+		w.Write(frameBytes([]byte("opening"), []byte("rest")))
+	}))
+	defer srv.Close()
+
+	v := NewRemoteVoice(RemoteConfig{BaseURL: srv.URL, Scope: "chat-message"})
+	var pieces []string
+	mime, err := v.SpeakStreamNamed(context.Background(), "msg-1", "le texte", func(p []byte) error {
+		pieces = append(pieces, string(p))
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got["id"] != "msg-1" || got["scope"] != "chat-message" || got["stream"] != true {
+		t.Fatalf("request body = %v, want the reading named and streamed", got)
+	}
+	if mime != "audio/mpeg" || len(pieces) != 2 || pieces[0] != "opening" || pieces[1] != "rest" {
+		t.Fatalf("mime=%q pieces=%v", mime, pieces)
 	}
 }
