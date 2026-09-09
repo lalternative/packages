@@ -240,6 +240,35 @@ type Entitlement struct {
 	// ended in year one rather than as nothing to report, which is why this stays
 	// a pointer where Status and PlanCode are flattened.
 	CurrentPeriodEnd *time.Time `json:"current_period_end,omitempty"`
+	// CurrentPeriodStart anchors the period already paid for. Nil with no
+	// subscription.
+	CurrentPeriodStart *time.Time `json:"current_period_start,omitempty"`
+	// CancelAtPeriodEnd is true once the customer asked to stop: access runs to
+	// CurrentPeriodEnd and no renewal follows. Entitled stays true meanwhile —
+	// that period was paid for.
+	CancelAtPeriodEnd bool `json:"cancel_at_period_end"`
+	// PendingPlanCode is a smaller plan the customer scheduled, applied at
+	// PendingPlanEffectiveAt. Empty when nothing is scheduled.
+	//
+	// Together with the fields above this is the whole of what a billing page
+	// shows, so an app keeps no subscriptions row of its own: that row is a
+	// projection Lungor already owns, and it drifts the first time a delivery
+	// is missed.
+	PendingPlanCode        string     `json:"pending_plan_code,omitempty"`
+	PendingPlanEffectiveAt *time.Time `json:"pending_plan_effective_at,omitempty"`
+}
+
+// BillingPath is the route every app mounts its billing page on, and the one
+// a checkout returns to. One name across products, so a return URL is built
+// from this constant rather than from each app's own idea of where its plans
+// live: the page reads the session Lungor stamps on the URL and shows how the
+// checkout ended, paid, refused or abandoned alike.
+const BillingPath = "/billing"
+
+// BillingURL joins an app's public origin with BillingPath, for SuccessURL and
+// CancelURL.
+func BillingURL(origin string) string {
+	return strings.TrimRight(origin, "/") + BillingPath
 }
 
 // Balance returns the remaining allowance for a unit, and whether Lungor
@@ -314,16 +343,31 @@ func entitlementFrom(w wire.FinanceEntitlementResponse) Entitlement {
 	// rank, so flattening nil to 0 would report the smallest tier for a plan
 	// Lungor never named.
 	out.PlanRank = w.PlanRank
-	// The wire carries the date as a plain string: swag emits no date-time format
-	// for a *time.Time, so the generated field is untyped. An unparseable value
-	// leaves the date absent rather than failing the call — the verdict above is
-	// what the caller asked for, and it is already settled.
-	if w.CurrentPeriodEnd != nil {
-		if t, err := time.Parse(time.RFC3339, *w.CurrentPeriodEnd); err == nil {
-			out.CurrentPeriodEnd = &t
-		}
+	out.CurrentPeriodEnd = parseTime(w.CurrentPeriodEnd)
+	out.CurrentPeriodStart = parseTime(w.CurrentPeriodStart)
+	if w.CancelAtPeriodEnd != nil {
+		out.CancelAtPeriodEnd = *w.CancelAtPeriodEnd
 	}
+	if w.PendingPlanCode != nil {
+		out.PendingPlanCode = *w.PendingPlanCode
+	}
+	out.PendingPlanEffectiveAt = parseTime(w.PendingPlanEffectiveAt)
 	return out
+}
+
+// parseTime reads a wire date. swag emits no date-time format for a
+// *time.Time, so the generated field is a plain string; an unparseable value
+// leaves the date absent rather than failing the call — the verdict is what
+// the caller asked for, and it is already settled.
+func parseTime(s *string) *time.Time {
+	if s == nil {
+		return nil
+	}
+	t, err := time.Parse(time.RFC3339, *s)
+	if err != nil {
+		return nil
+	}
+	return &t
 }
 
 // CheckoutInput starts a hosted checkout for one user.

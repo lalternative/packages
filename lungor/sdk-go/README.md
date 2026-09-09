@@ -92,6 +92,18 @@ A user Lungor has never seen is not an error: it resolves to
 `StatusNoSubscription` with `Entitled: false`, which is the right answer for
 everyone who has not paid.
 
+## The billing page
+
+Every app mounts its billing page on `sdk.BillingPath` (`/billing`), and every
+checkout returns there — `sdk.BillingURL(origin)` builds the SuccessURL and
+CancelURL. One name across products, so the page that reads how a checkout
+ended is the same page everywhere.
+
+What that page shows travels on the entitlement read, so an app keeps no
+subscriptions row of its own: `CurrentPeriodStart` / `CurrentPeriodEnd`,
+`CancelAtPeriodEnd`, and `PendingPlanCode` with `PendingPlanEffectiveAt` for
+a downgrade waiting on the renewal.
+
 ## On a hot path: cache it
 
 Entitlement is read on rate-limit and quota checks. An HTTP round trip per
