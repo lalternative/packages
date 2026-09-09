@@ -92,9 +92,14 @@ import { BillingPage } from '@lalternative/lungor-sdk-react';
   onResume={resume}
   onWithdrawPendingPlan={withdraw}
   onPaid={() => queryClient.invalidateQueries({ queryKey: ['entitlement'] })}
+  onContinue={() => router.navigate({ to: '/app' })}
   onLeaveCheckoutReturn={() => router.navigate({ to: '/billing', search: {} })}
 />;
 ```
+
+`formatUnit` renders an allowance on the grid ("100 crédits par mois");
+`formatBalance` renders what remains of a unit on the current plan ("12
+crédits"). They are kept apart because a balance is not "per period".
 
 `subscription` is Lungor's entitlement read as is: `entitled`, `status`,
 `planCode`, the period, `cancelAtPeriodEnd`, and the pending plan with its
@@ -155,7 +160,7 @@ is opened on `paid`, never on the redirect alone.
 | `failed` | « Paiement refusé » + the reason, when it is one the payer can act on | `onRetry`, `onDismiss` |
 | `canceled` | « Paiement annulé » | `onRetry`, `onDismiss` |
 | `expired` | « Session expirée » | `onRetry`, `onDismiss` |
-| still in flight after `timeoutMs` (60s) | « Confirmation en attente » | asks again |
+| still in flight after `timeoutMs` (20s) | « Confirmation en attente » | asks again |
 
 `useCheckoutReturn` is the same logic without the markup, for a page that
 renders its own. `readCheckoutSessionId()` reads the id from the URL on its own.

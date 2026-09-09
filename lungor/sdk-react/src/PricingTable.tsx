@@ -1,5 +1,11 @@
 import { useMemo, type CSSProperties } from 'react';
-import { formatPrice, isFreePlan, type PricingAllocation, type PricingPlan } from './plans.js';
+import {
+  formatPrice,
+  intervalSuffix,
+  isFreePlan,
+  type PricingAllocation,
+  type PricingPlan,
+} from './plans.js';
 
 /**
  * What a plan's button does when pressed, so the caller routes rather than
@@ -78,20 +84,6 @@ const DEFAULT_LABELS: Required<PricingTableLabels> = {
   empty: 'Aucune offre n’est disponible pour le moment.',
   tableCaption: 'Comparatif des offres',
 };
-
-const INTERVAL_LABELS: Record<string, string> = {
-  day: 'jour',
-  week: 'semaine',
-  month: 'mois',
-  year: 'an',
-};
-
-function intervalSuffix(plan: PricingPlan): string {
-  if (!plan.interval) return '';
-  const count = plan.intervalCount ?? 1;
-  const unit = INTERVAL_LABELS[plan.interval] ?? plan.interval;
-  return count > 1 ? ` / ${count} ${unit}` : ` / ${unit}`;
-}
 
 function defaultFormatUnit(allocation: PricingAllocation): string {
   return `${allocation.amount.toLocaleString()} ${allocation.unit}`;

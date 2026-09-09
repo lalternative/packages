@@ -80,3 +80,18 @@ export function formatPrice(amount: number, currency: string, locale?: string): 
     return `${(amount / MINOR_UNITS).toFixed(2)} ${currency}`;
   }
 }
+
+const INTERVAL_LABELS: Record<string, string> = {
+  day: 'jour',
+  week: 'semaine',
+  month: 'mois',
+  year: 'an',
+};
+
+/** The " / mois" after a price, in French, from the plan's billing cadence. */
+export function intervalSuffix(plan: PricingPlan): string {
+  if (!plan.interval) return '';
+  const count = plan.intervalCount ?? 1;
+  const unit = INTERVAL_LABELS[plan.interval] ?? plan.interval;
+  return count > 1 ? ` / ${count} ${unit}` : ` / ${unit}`;
+}

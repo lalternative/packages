@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { CheckoutOutcome, type CheckoutOutcomeLabels } from './CheckoutOutcome.js';
 import { readCheckoutSessionId, type CheckoutSession } from './checkout.js';
-import { formatPrice, isFreePlan, type PricingAllocation, type PricingPlan } from './plans.js';
+import {
+  formatPrice,
+  intervalSuffix,
+  isFreePlan,
+  type PricingAllocation,
+  type PricingPlan,
+} from './plans.js';
 import { PricingTable, type PricingIntent, type PricingTableLabels } from './PricingTable.js';
 
 /**
@@ -92,7 +98,9 @@ export interface BillingPageProps {
   onWithdrawPendingPlan?: () => void;
   /** Called once the returned checkout reads as paid: refresh the subscription. */
   onPaid?: (session: CheckoutSession) => void;
-  /** Strips the checkout parameters from the URL and stays. */
+  /** Pressed on a confirmed payment: back into the app, typically its home. */
+  onContinue?: (session: CheckoutSession) => void;
+  /** Leaves an unpaid ending alone: strips the checkout parameters and stays. */
   onLeaveCheckoutReturn?: () => void;
   /**
    * A plan code handed over by the public pricing page (`?plan=`), for which
@@ -101,7 +109,13 @@ export interface BillingPageProps {
   requestedPlanCode?: string | null;
   busy?: boolean;
   locale?: string;
+  /** Renders a plan's allowance on the grid (`credit` → "100 crédits par mois"). */
   formatUnit?: (allocation: PricingAllocation) => string;
+  /**
+   * Renders what remains of a unit on the current plan ("12 crédits"). Kept
+   * apart from formatUnit: an allowance reads "per period", a balance does not.
+   */
+  formatBalance?: (unit: string, amount: number) => string;
   labels?: BillingPageLabels;
   outcomeLabels?: CheckoutOutcomeLabels;
   pricingLabels?: PricingTableLabels;
@@ -144,11 +158,13 @@ export function BillingPage({
   onResume,
   onWithdrawPendingPlan,
   onPaid,
+  onContinue,
   onLeaveCheckoutReturn,
   requestedPlanCode,
   busy = false,
   locale,
   formatUnit,
+  formatBalance,
   labels,
   outcomeLabels,
   pricingLabels,
@@ -195,7 +211,7 @@ export function BillingPage({
         variant="hero"
         fetchSession={fetchSession}
         onPaid={onPaid}
-        onContinue={onLeaveCheckoutReturn}
+        onContinue={onContinue ?? onLeaveCheckoutReturn}
         onDismiss={onLeaveCheckoutReturn}
         onRetry={() =>
           document.getElementById('lungor-plans')?.scrollIntoView({ behavior: 'smooth' })
@@ -230,8 +246,8 @@ export function BillingPage({
               </p>
               {current ? (
                 <p className="text-sm text-muted-foreground">
-                  {current.priceLabel ?? formatPrice(current.amount, current.currency, locale)}
-                  {current.interval ? ` / ${current.interval}` : ''}
+                  {current.priceLabel ??
+                    formatPrice(current.amount, current.currency, locale) + intervalSuffix(current)}
                 </p>
               ) : null}
             </div>
@@ -253,7 +269,7 @@ export function BillingPage({
                   <p key={unit} className="text-sm text-muted-foreground">
                     {l.remaining}{' '}
                     <span className="font-medium text-foreground">
-                      {formatUnit ? formatUnit({ unit, amount }) : `${amount} ${unit}`}
+                      {formatBalance ? formatBalance(unit, amount) : `${amount} ${unit}`}
                     </span>
                   </p>
                 ))
