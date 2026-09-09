@@ -218,7 +218,7 @@ type FinanceAppWithdrawPendingResponse struct {
 	Withdrawn *bool   `json:"withdrawn,omitempty"`
 }
 
-// FinanceCheckoutMethodView Reports whether the payment behind a checkout landed, computed from the database at call time. It is the fallback when the subscription webhook is late or missed: call it on the success page, and open access on paid rather than on the redirect alone. A session of another app reads as not found.
+// FinanceCheckoutMethodView defines model for finance.checkoutMethodView.
 type FinanceCheckoutMethodView struct {
 	Id    *string `json:"id,omitempty"`
 	Label *string `json:"label,omitempty"`
@@ -261,6 +261,29 @@ type FinanceCheckoutResponse struct {
 	RedirectUrl    *string `json:"redirect_url,omitempty"`
 	SessionId      *string `json:"session_id,omitempty"`
 	SubscriptionId *string `json:"subscription_id,omitempty"`
+}
+
+// FinanceCheckoutSessionResponse defines model for finance.checkoutSessionResponse.
+type FinanceCheckoutSessionResponse struct {
+	CreatedAt      *string `json:"created_at,omitempty"`
+	ExpiresAt      *string `json:"expires_at,omitempty"`
+	ExternalUserId *string `json:"external_user_id,omitempty"`
+
+	// FailureReason FailureReason is the provider's own word for a refusal (Mollie:
+	// insufficient_funds, invalid_card_number…). Set on failed only.
+	FailureReason *string `json:"failure_reason,omitempty"`
+
+	// Paid Paid is true once the provider settled the payment: for a one_off plan it
+	// is the whole answer, for a recurring one the subscription is active too.
+	Paid      *bool   `json:"paid,omitempty"`
+	PlanId    *string `json:"plan_id,omitempty"`
+	SessionId *string `json:"session_id,omitempty"`
+
+	// Status Status is pending, redirected, completed, failed, canceled or expired.
+	// pending and redirected are still in flight; the other four are final.
+	Status             *string `json:"status,omitempty"`
+	SubscriptionId     *string `json:"subscription_id,omitempty"`
+	SubscriptionStatus *string `json:"subscription_status,omitempty"`
 }
 
 // FinanceClaimReq defines model for finance.claimReq.
@@ -725,6 +748,9 @@ type ClientInterface interface {
 	// ListCheckoutMethods request
 	ListCheckoutMethods(ctx context.Context, params *ListCheckoutMethodsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetCheckoutSession request
+	GetCheckoutSession(ctx context.Context, sessionId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// PayplugWebhook request
 	PayplugWebhook(ctx context.Context, credId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -913,6 +939,18 @@ func (c *Client) Checkout(ctx context.Context, body CheckoutJSONRequestBody, req
 
 func (c *Client) ListCheckoutMethods(ctx context.Context, params *ListCheckoutMethodsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListCheckoutMethodsRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetCheckoutSession(ctx context.Context, sessionId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetCheckoutSessionRequest(c.Server, sessionId)
 	if err != nil {
 		return nil, err
 	}
@@ -1637,6 +1675,40 @@ func NewListCheckoutMethodsRequest(server string, params *ListCheckoutMethodsPar
 		}
 
 		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetCheckoutSessionRequest generates requests for GetCheckoutSession
+func NewGetCheckoutSessionRequest(server string, sessionId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "session_id", runtime.ParamLocationPath, sessionId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/finance/checkout/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
 	}
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
@@ -3038,6 +3110,9 @@ type ClientWithResponsesInterface interface {
 	// ListCheckoutMethodsWithResponse request
 	ListCheckoutMethodsWithResponse(ctx context.Context, params *ListCheckoutMethodsParams, reqEditors ...RequestEditorFn) (*ListCheckoutMethodsResponse, error)
 
+	// GetCheckoutSessionWithResponse request
+	GetCheckoutSessionWithResponse(ctx context.Context, sessionId string, reqEditors ...RequestEditorFn) (*GetCheckoutSessionResponse, error)
+
 	// PayplugWebhookWithResponse request
 	PayplugWebhookWithResponse(ctx context.Context, credId string, reqEditors ...RequestEditorFn) (*PayplugWebhookResponse, error)
 
@@ -3266,6 +3341,31 @@ func (r ListCheckoutMethodsResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r ListCheckoutMethodsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetCheckoutSessionResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *FinanceCheckoutSessionResponse
+	JSON400      *EchoHTTPError
+	JSON401      *EchoHTTPError
+	JSON404      *EchoHTTPError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetCheckoutSessionResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetCheckoutSessionResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -4016,6 +4116,15 @@ func (c *ClientWithResponses) ListCheckoutMethodsWithResponse(ctx context.Contex
 	return ParseListCheckoutMethodsResponse(rsp)
 }
 
+// GetCheckoutSessionWithResponse request returning *GetCheckoutSessionResponse
+func (c *ClientWithResponses) GetCheckoutSessionWithResponse(ctx context.Context, sessionId string, reqEditors ...RequestEditorFn) (*GetCheckoutSessionResponse, error) {
+	rsp, err := c.GetCheckoutSession(ctx, sessionId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetCheckoutSessionResponse(rsp)
+}
+
 // PayplugWebhookWithResponse request returning *PayplugWebhookResponse
 func (c *ClientWithResponses) PayplugWebhookWithResponse(ctx context.Context, credId string, reqEditors ...RequestEditorFn) (*PayplugWebhookResponse, error) {
 	rsp, err := c.PayplugWebhook(ctx, credId, reqEditors...)
@@ -4550,6 +4659,53 @@ func ParseListCheckoutMethodsResponse(rsp *http.Response) (*ListCheckoutMethodsR
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest FinanceCheckoutMethodsResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest EchoHTTPError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest EchoHTTPError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest EchoHTTPError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetCheckoutSessionResponse parses an HTTP response from a GetCheckoutSessionWithResponse call
+func ParseGetCheckoutSessionResponse(rsp *http.Response) (*GetCheckoutSessionResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetCheckoutSessionResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest FinanceCheckoutSessionResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

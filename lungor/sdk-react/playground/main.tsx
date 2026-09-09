@@ -1,6 +1,8 @@
 import { useState } from "react"
 import { createRoot } from "react-dom/client"
 import { CheckoutMethodPicker } from "../src/CheckoutMethodPicker.js"
+import { CheckoutOutcome } from "../src/CheckoutOutcome.js"
+import type { CheckoutSession, CheckoutStatus } from "../src/checkout.js"
 import { PricingTable } from "../src/PricingTable.js"
 import { formatPrice, type PricingAllocation, type PricingPlan } from "../src/plans.js"
 import { METHODS, PLANS, STAFF_PLAN, UNIT_LABELS } from "./catalogue.js"
@@ -13,7 +15,26 @@ function formatUnit(allocation: PricingAllocation): string {
   return `${allocation.amount.toLocaleString("fr-FR")} ${allocation.amount > 1 ? many : one}`
 }
 
-type Screen = "pricing" | "methods"
+type Screen = "pricing" | "methods" | "outcome"
+
+const OUTCOMES: CheckoutStatus[] = ["completed", "failed", "canceled", "expired", "redirected"]
+
+// Stands in for the app's proxy: answers "redirected" twice, then the chosen
+// ending, so the polling is visible.
+function fakeFetchSession(ending: CheckoutStatus, reason: string) {
+  let calls = 0
+  return async (sessionId: string): Promise<CheckoutSession> => {
+    await new Promise((r) => setTimeout(r, 400))
+    calls += 1
+    const status = calls < 3 ? "redirected" : ending
+    return {
+      sessionId,
+      status,
+      paid: status === "completed",
+      failureReason: status === "failed" ? reason : undefined,
+    }
+  }
+}
 
 function App() {
   const [screen, setScreen] = useState<Screen>("pricing")
@@ -24,6 +45,9 @@ function App() {
   const [leakStaff, setLeakStaff] = useState(false)
   const [current, setCurrent] = useState<string | undefined>(undefined)
   const [log, setLog] = useState<string[]>([])
+  const [ending, setEnding] = useState<CheckoutStatus>("failed")
+  const [reason, setReason] = useState("insufficient_funds")
+  const [run, setRun] = useState(0)
 
   const record = (line: string) => setLog((l) => [line, ...l].slice(0, 6))
 
@@ -39,6 +63,9 @@ function App() {
           </Tab>
           <Tab active={screen === "methods"} onClick={() => setScreen("methods")}>
             CheckoutMethodPicker
+          </Tab>
+          <Tab active={screen === "outcome"} onClick={() => setScreen("outcome")}>
+            CheckoutOutcome
           </Tab>
         </div>
       </header>
@@ -63,9 +90,43 @@ function App() {
             </Toggle>
           </>
         )}
-        <Toggle checked={busy} onChange={setBusy}>
-          Occupé
-        </Toggle>
+        {screen === "outcome" && (
+          <>
+            <label className="inline-flex items-center gap-2">
+              Fin
+              <select
+                value={ending}
+                onChange={(e) => setEnding(e.target.value as CheckoutStatus)}
+                className="rounded-md border border-input bg-background px-2 py-1"
+              >
+                {OUTCOMES.map((o) => (
+                  <option key={o} value={o}>
+                    {o === "redirected" ? "jamais (timeout)" : o}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="inline-flex items-center gap-2">
+              Raison
+              <input
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                className="rounded-md border border-input bg-background px-2 py-1 font-mono text-xs"
+              />
+            </label>
+            <button
+              onClick={() => setRun((n) => n + 1)}
+              className="rounded-md border border-input px-3 py-1 hover:bg-muted"
+            >
+              Rejouer le retour
+            </button>
+          </>
+        )}
+        {screen !== "outcome" && (
+          <Toggle checked={busy} onChange={setBusy}>
+            Occupé
+          </Toggle>
+        )}
       </div>
 
       {leakStaff && screen === "pricing" && (
@@ -93,12 +154,23 @@ function App() {
               record(`${intent} → ${plan.code} (${formatPrice(plan.amount, plan.currency, "fr-FR")})`)
             }
           />
-        ) : (
+        ) : screen === "methods" ? (
           <CheckoutMethodPicker
             methods={METHODS}
             busy={busy}
             amountLabel={formatPrice(2900, "EUR", "fr-FR")}
             onSelect={(id) => record(`payment_method → ${id}`)}
+          />
+        ) : (
+          <CheckoutOutcome
+            key={`${run}-${ending}-${reason}`}
+            sessionId="sess_playground"
+            fetchSession={fakeFetchSession(ending, reason)}
+            pollIntervalMs={600}
+            timeoutMs={4000}
+            onPaid={(s) => record(`onPaid → ${s.sessionId}`)}
+            onContinue={(s) => record(`onContinue → ${s.status}`)}
+            onRetry={(s) => record(`onRetry → ${s.status}${s.failureReason ? ` (${s.failureReason})` : ""}`)}
           />
         )}
       </main>

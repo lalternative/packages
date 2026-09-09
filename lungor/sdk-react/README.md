@@ -72,6 +72,44 @@ import { CheckoutMethodPicker } from '@lalternative/lungor-sdk-react';
 `onSelect` hands back the method id verbatim; send it as `payment_method` on
 `POST /finance/checkout`, then redirect to the `redirect_url` you get back.
 
+## CheckoutOutcome
+
+The provider's redirect says nothing about the outcome: Mollie sends the payer
+back to `success_url` paid or refused alike. So Lungor stamps
+`lungor_session_id=<id>` on both return URLs, and the page they land on asks
+how it ended. This component renders nothing off a checkout return, so it can
+sit permanently on that page.
+
+```tsx
+import { CheckoutOutcome } from '@lalternative/lungor-sdk-react';
+
+// fetchSession calls YOUR backend, which proxies Lungor's
+// GET /finance/checkout/{session_id} with the app key.
+<CheckoutOutcome
+  fetchSession={(id) => api.getCheckoutSession(id)}
+  onPaid={() => queryClient.invalidateQueries({ queryKey: ['entitlement'] })}
+  onContinue={() => router.navigate({ to: '/app' })}
+  onRetry={() => router.navigate({ to: '/pricing' })}
+/>;
+```
+
+It polls while the status is `pending` or `redirected`: the provider's
+notification can land a few seconds after the payer does, and a page that read
+`redirected` as a failure would refuse someone whose card was accepted. Access
+is opened on `paid`, never on the redirect alone.
+
+| Status | Shown | Button |
+|---|---|---|
+| `pending`, `redirected` | « Vérification du paiement… » | — |
+| `completed` | « Paiement confirmé » | `onContinue` |
+| `failed` | « Paiement refusé » + the reason, when it is one the payer can act on | `onRetry` |
+| `canceled` | « Paiement annulé » | `onRetry` |
+| `expired` | « Session expirée » | `onRetry` |
+| still in flight after `timeoutMs` (60s) | « Confirmation en attente » | asks again |
+
+`useCheckoutReturn` is the same logic without the markup, for a page that
+renders its own. `readCheckoutSessionId()` reads the id from the URL on its own.
+
 ## Styling
 
 Tailwind on the shadcn design tokens (`bg-background`, `border-input`, `ring`,

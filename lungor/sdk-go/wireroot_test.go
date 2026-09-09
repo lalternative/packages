@@ -81,6 +81,7 @@ func TestEveryOperationIsVersioned(t *testing.T) {
 			_, err := c.Checkout(ctx(), CheckoutInput{PriceID: "p", ExternalUserID: "u"})
 			return err
 		}, "/api/v1/finance/checkout"},
+		{"checkout session", func() error { _, err := c.CheckoutSession(ctx(), "sess_1"); return err }, "/api/v1/finance/checkout/sess_1"},
 		{"cancel", func() error { _, err := c.Cancel(ctx(), "u", true); return err }, "/api/v1/subscriptions/cancel"},
 		{"change plan", func() error {
 			_, err := c.ChangePlan(ctx(), ChangePlanInput{ExternalUserID: "u", PlanCode: "max"})

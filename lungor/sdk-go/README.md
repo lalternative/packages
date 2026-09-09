@@ -31,8 +31,8 @@ must degrade and the other must not. `entitlementFrom` converts, reading a nil
 verdict as **not** entitled — the direction that grants nothing.
 
 One string is still hand-written: the `/api/v1/` prefix. Nothing in the
-contract pins it, so `TestEveryOperationIsVersioned` asserts it against all
-eleven operations.
+contract pins it, so `TestEveryOperationIsVersioned` asserts it against every
+operation.
 
 ### Updating after an API change
 
@@ -165,6 +165,35 @@ out, err := client.Checkout(ctx, sdk.CheckoutInput{
 
 The amount is never sent. Lungor prices the tier, so the page shown and the
 amount charged cannot disagree.
+
+### Reading how it ended
+
+The provider's redirect says nothing about the outcome: Mollie sends the payer
+back to `SuccessURL` paid or refused alike. So Lungor stamps
+`lungor_session_id=<id>` on both return URLs, and the page they land on asks:
+
+```go
+sessionID := r.URL.Query().Get(sdk.SessionIDParam)
+
+s, err := client.CheckoutSession(ctx, sessionID)
+switch {
+case err != nil:
+    // ErrNotFound: not this app's session. Anything else: transient, retry.
+case s.Paid:
+    // open access — or invalidate the entitlement cache and let it say so
+case s.Status == sdk.CheckoutFailed:
+    // the provider refused: s.FailureReason says why; offer a new checkout
+case s.Status.Final():
+    // canceled or expired: the payer gave up
+default:
+    // pending or redirected: the notification is on its way, ask again
+}
+```
+
+Open access on `Paid`, never on the redirect alone, and keep asking while
+`Status` is not `Final()`: the provider's notification can land a few seconds
+after the payer does, and a page that read `redirected` as a failure would
+refuse someone whose card was accepted.
 
 `WithCheckoutIdentity` is required here and only here: Lungor verifies the app
 key **and** that the app id matches it. A caller that only reads entitlement
