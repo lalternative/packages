@@ -72,6 +72,39 @@ import { CheckoutMethodPicker } from '@lalternative/lungor-sdk-react';
 `onSelect` hands back the method id verbatim; send it as `payment_method` on
 `POST /finance/checkout`, then redirect to the `redirect_url` you get back.
 
+## BillingPage
+
+The one billing page every app mounts on `BILLING_PATH` (`/billing`), and the
+one every checkout returns to. Three things, top to bottom: how the checkout
+the user just returned from ended, the plan they hold, and the plans they can
+move to. The app supplies data and callbacks; the page is the same everywhere.
+
+```tsx
+import { BillingPage } from '@lalternative/lungor-sdk-react';
+
+<BillingPage
+  plans={plans}                       // GET /finance/plans, through your backend
+  subscription={entitlement}          // GET /entitlements, through your backend
+  fetchSession={(id) => api.getCheckoutSession(id)}
+  onCheckout={(plan) => startCheckout(plan.id)}
+  onChangePlan={(plan) => changePlan(plan.code)}
+  onCancel={cancel}
+  onResume={resume}
+  onWithdrawPendingPlan={withdraw}
+  onPaid={() => queryClient.invalidateQueries({ queryKey: ['entitlement'] })}
+  onLeaveCheckoutReturn={() => router.navigate({ to: '/billing', search: {} })}
+/>;
+```
+
+`subscription` is Lungor's entitlement read as is: `entitled`, `status`,
+`planCode`, the period, `cancelAtPeriodEnd`, and the pending plan with its
+date. Everything the page shows travels on that read, so the app keeps no
+subscriptions row of its own.
+
+The page is authenticated: a checkout needs a user to attach the payment to.
+The public pricing page hands a chosen plan over as `?plan=<code>` after
+sign-up, and the page opens its checkout on arrival.
+
 ## CheckoutOutcome
 
 The provider's redirect says nothing about the outcome: Mollie sends the payer
@@ -93,6 +126,23 @@ import { CheckoutOutcome } from '@lalternative/lungor-sdk-react';
 />;
 ```
 
+Send the checkout back to the **plans page**, never to the home page: it is
+the one page where every ending makes sense. Paid, the grid shows the new
+current plan; refused or abandoned, the grid sits right under the message and
+the customer tries again without navigating. There, use `variant="hero"`,
+which heads the page; the default `banner` fits inside one.
+
+```tsx
+<CheckoutOutcome
+  variant="hero"
+  fetchSession={(id) => api.getCheckoutSession(id)}
+  onPaid={() => queryClient.invalidateQueries({ queryKey: ['entitlement'] })}
+  onContinue={() => router.navigate({ to: '/app' })}
+  onRetry={() => document.getElementById('plans')?.scrollIntoView({ behavior: 'smooth' })}
+  onDismiss={() => router.navigate({ to: '/plans', search: {} })}
+/>;
+```
+
 It polls while the status is `pending` or `redirected`: the provider's
 notification can land a few seconds after the payer does, and a page that read
 `redirected` as a failure would refuse someone whose card was accepted. Access
@@ -102,9 +152,9 @@ is opened on `paid`, never on the redirect alone.
 |---|---|---|
 | `pending`, `redirected` | « Vérification du paiement… » | — |
 | `completed` | « Paiement confirmé » | `onContinue` |
-| `failed` | « Paiement refusé » + the reason, when it is one the payer can act on | `onRetry` |
-| `canceled` | « Paiement annulé » | `onRetry` |
-| `expired` | « Session expirée » | `onRetry` |
+| `failed` | « Paiement refusé » + the reason, when it is one the payer can act on | `onRetry`, `onDismiss` |
+| `canceled` | « Paiement annulé » | `onRetry`, `onDismiss` |
+| `expired` | « Session expirée » | `onRetry`, `onDismiss` |
 | still in flight after `timeoutMs` (60s) | « Confirmation en attente » | asks again |
 
 `useCheckoutReturn` is the same logic without the markup, for a page that

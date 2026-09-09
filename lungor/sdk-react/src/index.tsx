@@ -16,3 +16,5 @@ export type {
 } from './useCheckoutReturn.js';
 export { CHECKOUT_SESSION_PARAM, isFinalCheckoutStatus, readCheckoutSessionId } from './checkout.js';
 export type { CheckoutSession, CheckoutStatus } from './checkout.js';
+export { BillingPage, BILLING_PATH, REQUESTED_PLAN_PARAM } from './BillingPage.js';
+export type { BillingPageProps, BillingPageLabels, BillingSubscription } from './BillingPage.js';

@@ -2,6 +2,7 @@ import { useState } from "react"
 import { createRoot } from "react-dom/client"
 import { CheckoutMethodPicker } from "../src/CheckoutMethodPicker.js"
 import { CheckoutOutcome } from "../src/CheckoutOutcome.js"
+import { BillingPage, type BillingSubscription } from "../src/BillingPage.js"
 import type { CheckoutSession, CheckoutStatus } from "../src/checkout.js"
 import { PricingTable } from "../src/PricingTable.js"
 import { formatPrice, type PricingAllocation, type PricingPlan } from "../src/plans.js"
@@ -15,7 +16,25 @@ function formatUnit(allocation: PricingAllocation): string {
   return `${allocation.amount.toLocaleString("fr-FR")} ${allocation.amount > 1 ? many : one}`
 }
 
-type Screen = "pricing" | "methods" | "outcome"
+type Screen = "pricing" | "methods" | "outcome" | "billing"
+
+type SubState = "none" | "active" | "pending" | "canceling" | "past_due"
+
+function fakeSubscription(state: SubState): BillingSubscription | undefined {
+  const end = new Date(Date.now() + 12 * 24 * 3600 * 1000).toISOString()
+  switch (state) {
+    case "none":
+      return { entitled: false, status: "no_subscription" }
+    case "active":
+      return { entitled: true, status: "active", planCode: "pro", currentPeriodEnd: end, balances: { synthesis: 212 } }
+    case "pending":
+      return { entitled: true, status: "active", planCode: "pro", currentPeriodEnd: end, pendingPlanCode: "solo", pendingPlanEffectiveAt: end }
+    case "canceling":
+      return { entitled: true, status: "canceled", planCode: "pro", currentPeriodEnd: end, cancelAtPeriodEnd: true }
+    case "past_due":
+      return { entitled: true, status: "past_due", planCode: "pro", currentPeriodEnd: end }
+  }
+}
 
 const OUTCOMES: CheckoutStatus[] = ["completed", "failed", "canceled", "expired", "redirected"]
 
@@ -48,6 +67,8 @@ function App() {
   const [ending, setEnding] = useState<CheckoutStatus>("failed")
   const [reason, setReason] = useState("insufficient_funds")
   const [run, setRun] = useState(0)
+  const [hero, setHero] = useState(true)
+  const [subState, setSubState] = useState<SubState>("active")
 
   const record = (line: string) => setLog((l) => [line, ...l].slice(0, 6))
 
@@ -66,6 +87,9 @@ function App() {
           </Tab>
           <Tab active={screen === "outcome"} onClick={() => setScreen("outcome")}>
             CheckoutOutcome
+          </Tab>
+          <Tab active={screen === "billing"} onClick={() => setScreen("billing")}>
+            BillingPage
           </Tab>
         </div>
       </header>
@@ -114,6 +138,9 @@ function App() {
                 className="rounded-md border border-input bg-background px-2 py-1 font-mono text-xs"
               />
             </label>
+            <Toggle checked={hero} onChange={setHero}>
+              Variante hero
+            </Toggle>
             <button
               onClick={() => setRun((n) => n + 1)}
               className="rounded-md border border-input px-3 py-1 hover:bg-muted"
@@ -121,6 +148,22 @@ function App() {
               Rejouer le retour
             </button>
           </>
+        )}
+        {screen === "billing" && (
+          <label className="inline-flex items-center gap-2">
+            Souscription
+            <select
+              value={subState}
+              onChange={(e) => setSubState(e.target.value as SubState)}
+              className="rounded-md border border-input bg-background px-2 py-1"
+            >
+              {(["none", "active", "pending", "canceling", "past_due"] as SubState[]).map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </label>
         )}
         {screen !== "outcome" && (
           <Toggle checked={busy} onChange={setBusy}>
@@ -161,16 +204,34 @@ function App() {
             amountLabel={formatPrice(2900, "EUR", "fr-FR")}
             onSelect={(id) => record(`payment_method → ${id}`)}
           />
+        ) : screen === "billing" ? (
+          <BillingPage
+            plans={PLANS}
+            subscription={fakeSubscription(subState)}
+            busy={busy}
+            locale="fr-FR"
+            formatUnit={formatUnit}
+            fetchSession={fakeFetchSession(ending, reason)}
+            onCheckout={(plan) => record(`onCheckout → ${plan.code}`)}
+            onChangePlan={(plan) => record(`onChangePlan → ${plan.code}`)}
+            onCancel={() => record("onCancel")}
+            onResume={() => record("onResume")}
+            onWithdrawPendingPlan={() => record("onWithdrawPendingPlan")}
+            onPaid={(s) => record(`onPaid → ${s.sessionId}`)}
+            onLeaveCheckoutReturn={() => record("onLeaveCheckoutReturn")}
+          />
         ) : (
           <CheckoutOutcome
             key={`${run}-${ending}-${reason}`}
             sessionId="sess_playground"
+            variant={hero ? "hero" : "banner"}
             fetchSession={fakeFetchSession(ending, reason)}
             pollIntervalMs={600}
             timeoutMs={4000}
             onPaid={(s) => record(`onPaid → ${s.sessionId}`)}
             onContinue={(s) => record(`onContinue → ${s.status}`)}
             onRetry={(s) => record(`onRetry → ${s.status}${s.failureReason ? ` (${s.failureReason})` : ""}`)}
+            onDismiss={(s) => record(`onDismiss → ${s.status}`)}
           />
         )}
       </main>

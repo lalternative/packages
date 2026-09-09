@@ -1,4 +1,8 @@
-import { useCheckoutReturn, type UseCheckoutReturnOptions } from './useCheckoutReturn.js';
+import {
+  useCheckoutReturn,
+  type CheckoutReturnPhase,
+  type UseCheckoutReturnOptions,
+} from './useCheckoutReturn.js';
 import type { CheckoutSession } from './checkout.js';
 
 export interface CheckoutOutcomeLabels {
@@ -18,6 +22,7 @@ export interface CheckoutOutcomeLabels {
   continueCta?: string;
   retryCta?: string;
   refreshCta?: string;
+  dismissCta?: string;
 }
 
 const DEFAULT_LABELS: Required<CheckoutOutcomeLabels> = {
@@ -38,6 +43,7 @@ const DEFAULT_LABELS: Required<CheckoutOutcomeLabels> = {
   continueCta: 'Continuer',
   retryCta: 'Réessayer le paiement',
   refreshCta: 'Actualiser',
+  dismissCta: 'Plus tard',
 };
 
 /** The provider's reasons a shopper can act on. Anything else falls back to `failedDetail`. */
@@ -56,10 +62,56 @@ const FAILURE_DETAILS: Record<string, string> = {
 export interface CheckoutOutcomeProps extends UseCheckoutReturnOptions {
   /** Pressed on a confirmed payment. Typically strips the session id from the URL and moves on. */
   onContinue?: (session: CheckoutSession) => void;
-  /** Pressed after a refusal, a cancellation or an expiry: open a new checkout. */
+  /**
+   * Pressed after a refusal, a cancellation or an expiry. On the plans page
+   * itself, scroll to the grid; elsewhere, navigate to it.
+   */
   onRetry?: (session: CheckoutSession) => void;
+  /** Pressed to leave an unpaid ending alone. Typically strips the session id from the URL. */
+  onDismiss?: (session: CheckoutSession) => void;
+  /**
+   * `banner` fits inside a page; `hero` heads the plans page the checkout
+   * returns to, where the outcome is the whole reason the page is open.
+   */
+  variant?: 'banner' | 'hero';
   labels?: CheckoutOutcomeLabels;
   className?: string;
+}
+
+type Tone = 'neutral' | 'success' | 'failure';
+
+function Icon({ phase, tone }: { phase: CheckoutReturnPhase; tone: Tone }) {
+  if (phase === 'checking') {
+    return (
+      <span
+        aria-hidden="true"
+        className="size-5 shrink-0 animate-spin rounded-full border-2 border-muted-foreground/40 border-t-foreground"
+      />
+    );
+  }
+  const stroke =
+    tone === 'success' ? 'text-primary' : tone === 'failure' ? 'text-destructive' : 'text-muted-foreground';
+  const path =
+    tone === 'success'
+      ? 'M9 12l2 2 4-4'
+      : tone === 'failure'
+        ? 'M15 9l-6 6M9 9l6 6'
+        : 'M12 7v5l3 2';
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={`size-5 shrink-0 ${stroke}`}
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d={path} />
+    </svg>
+  );
 }
 
 /**
@@ -72,6 +124,8 @@ export interface CheckoutOutcomeProps extends UseCheckoutReturnOptions {
 export function CheckoutOutcome({
   onContinue,
   onRetry,
+  onDismiss,
+  variant = 'banner',
   labels,
   className = '',
   ...options
@@ -82,75 +136,134 @@ export function CheckoutOutcome({
 
   if (phase === 'idle') return null;
 
-  const tone =
+  const tone: Tone =
     phase === 'completed'
-      ? 'border-primary/40 bg-primary/5'
+      ? 'success'
       : phase === 'checking' || phase === 'timeout'
-        ? 'border-input bg-muted/40'
-        : 'border-destructive/40 bg-destructive/10';
+        ? 'neutral'
+        : 'failure';
 
   let title = l.checking;
   let detail: string | undefined;
-  let action: { label: string; run: () => void } | undefined;
+  let primary: { label: string; run: () => void } | undefined;
+  let secondary: { label: string; run: () => void } | undefined;
+  const unpaid = () => {
+    if (onRetry && session) primary = { label: l.retryCta, run: () => onRetry(session) };
+    if (onDismiss && session) secondary = { label: l.dismissCta, run: () => onDismiss(session) };
+  };
 
   switch (phase) {
     case 'completed':
       title = l.completed;
       detail = l.completedDetail;
-      if (onContinue && session) action = { label: l.continueCta, run: () => onContinue(session) };
+      if (onContinue && session) primary = { label: l.continueCta, run: () => onContinue(session) };
       break;
     case 'failed':
       title = l.failed;
       detail = (session?.failureReason && FAILURE_DETAILS[session.failureReason]) || l.failedDetail;
-      if (onRetry && session) action = { label: l.retryCta, run: () => onRetry(session) };
+      unpaid();
       break;
     case 'canceled':
       title = l.canceled;
       detail = l.canceledDetail;
-      if (onRetry && session) action = { label: l.retryCta, run: () => onRetry(session) };
+      unpaid();
       break;
     case 'expired':
       title = l.expired;
       detail = l.expiredDetail;
-      if (onRetry && session) action = { label: l.retryCta, run: () => onRetry(session) };
+      unpaid();
       break;
     case 'timeout':
       title = l.timeout;
       detail = l.timeoutDetail;
-      action = { label: l.refreshCta, run: state.retry };
+      primary = { label: l.refreshCta, run: state.retry };
       break;
     case 'error':
       title = l.error;
       detail = l.errorDetail;
-      action = { label: l.refreshCta, run: state.retry };
+      primary = { label: l.refreshCta, run: state.retry };
       break;
+  }
+
+  const surface =
+    tone === 'success'
+      ? 'border-primary/30 bg-primary/5'
+      : tone === 'failure'
+        ? 'border-destructive/30 bg-destructive/5'
+        : 'border-border bg-muted/30';
+
+  const primaryButton = primary ? (
+    <button
+      type="button"
+      onClick={primary.run}
+      className="inline-flex h-10 items-center justify-center rounded-md bg-primary px-5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+    >
+      {primary.label}
+    </button>
+  ) : null;
+  const secondaryButton = secondary ? (
+    <button
+      type="button"
+      onClick={secondary.run}
+      className="inline-flex h-10 items-center justify-center rounded-md px-4 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+    >
+      {secondary.label}
+    </button>
+  ) : null;
+
+  if (variant === 'hero') {
+    return (
+      <section
+        role="status"
+        aria-live="polite"
+        className={`flex flex-col items-center gap-4 rounded-xl border px-6 py-10 text-center ${surface} ${className}`.trim()}
+      >
+        <span
+          className={`flex size-12 items-center justify-center rounded-full ${
+            tone === 'success'
+              ? 'bg-primary/10'
+              : tone === 'failure'
+                ? 'bg-destructive/10'
+                : 'bg-muted'
+          } [&>*]:size-6`}
+        >
+          <Icon phase={phase} tone={tone} />
+        </span>
+        <div className="flex flex-col gap-1.5">
+          <h2 className="text-xl font-semibold tracking-tight text-foreground">{title}</h2>
+          {detail ? <p className="max-w-md text-sm text-muted-foreground">{detail}</p> : null}
+        </div>
+        {primaryButton || secondaryButton ? (
+          <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+            {primaryButton}
+            {secondaryButton}
+          </div>
+        ) : null}
+      </section>
+    );
   }
 
   return (
     <div
       role="status"
       aria-live="polite"
-      className={`flex flex-col gap-3 rounded-md border p-4 ${tone} ${className}`.trim()}
+      className={`flex items-start gap-3 rounded-lg border p-4 ${surface} ${className}`.trim()}
     >
-      <div className="flex items-center gap-2">
-        {phase === 'checking' ? (
-          <span
-            aria-hidden="true"
-            className="size-4 shrink-0 animate-spin rounded-full border-2 border-muted-foreground/40 border-t-foreground"
-          />
+      <span className="mt-0.5">
+        <Icon phase={phase} tone={tone} />
+      </span>
+      <div className="flex min-w-0 flex-1 flex-col gap-2">
+        <div>
+          <p className="text-sm font-medium text-foreground">{title}</p>
+          {detail ? <p className="mt-0.5 text-sm text-muted-foreground">{detail}</p> : null}
+        </div>
+        {primaryButton || secondaryButton ? (
+          <div className="flex flex-wrap items-center gap-2">
+            {primaryButton}
+            {secondaryButton}
+          </div>
         ) : null}
-        <p className="text-sm font-medium text-foreground">{title}</p>
       </div>
-      {detail ? <p className="text-sm text-muted-foreground">{detail}</p> : null}
-      {action ? (
-        <button
-          type="button"
-          onClick={action.run}
-          className="h-9 w-fit rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-        >
-          {action.label}
-        </button>
-      ) : null}
     </div>
   );
 }
