@@ -5,8 +5,6 @@ import (
 	"net/url"
 	"strings"
 	"time"
-
-	readability "codeberg.org/readeck/go-readability/v2"
 )
 
 // minUsableRunes is the floor below which FetchWithFallback treats a static
@@ -26,6 +24,10 @@ type Renderer interface {
 // FetchWithFallback tries FetchStatic first. If the result has fewer than
 // minUsableRunes of text and r is non-nil, it retries by rendering the page's
 // JavaScript through r and re-running extraction on the rendered HTML.
+//
+// A static fetch refused with a *ChallengeError is retried the same way when
+// r is non-nil, since a real browser sometimes clears the interstitial a plain
+// GET cannot; a render that still comes back as a challenge is refused too.
 //
 // cache is consulted and populated the same way as in FetchStatic, for both
 // the static attempt and — keyed separately, since it holds a different
@@ -59,6 +61,11 @@ func FetchWithFallback(ctx context.Context, rawURL string, r Renderer, maxRunes 
 	}
 
 	html, rerr := r.Render(ctx, rawURL, 12*time.Second)
+	if rerr == nil {
+		if provider, ok := detectChallenge(nil, html); ok {
+			rerr = &ChallengeError{Provider: provider}
+		}
+	}
 	if rerr != nil {
 		if err != nil {
 			return nil, err
@@ -67,7 +74,7 @@ func FetchWithFallback(ctx context.Context, rawURL string, r Renderer, maxRunes 
 	}
 
 	title, text := extractHTML(html, parsed)
-	if strings.TrimSpace(text) == "" {
+	if strings.TrimSpace(text) == "" || looksLikeInterstitial(title, text) {
 		if err != nil {
 			return nil, err
 		}
@@ -79,22 +86,4 @@ func FetchWithFallback(ctx context.Context, rawURL string, r Renderer, maxRunes 
 		cache.Set(renderedKey, full)
 	}
 	return &Page{Title: title, Text: truncateRunes(text, maxRunes)}, nil
-}
-
-func extractHTML(html string, parsed *url.URL) (title, text string) {
-	defer func() {
-		if recover() != nil {
-			title, text = "", ""
-		}
-	}()
-
-	article, err := readability.FromReader(strings.NewReader(html), parsed)
-	if err != nil {
-		return "", ""
-	}
-	var buf strings.Builder
-	if err := article.RenderText(&buf); err != nil {
-		return "", ""
-	}
-	return strings.TrimSpace(article.Title()), strings.TrimSpace(buf.String())
 }

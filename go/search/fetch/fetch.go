@@ -26,6 +26,11 @@ const (
 	// fetchTimeout bounds one page fetch. It is generous because a proxied
 	// request adds the proxy's own hop to whatever the origin takes.
 	fetchTimeout = 20 * time.Second
+
+	// maxBodyBytes bounds how much of a response is read: a page is held in
+	// memory to be inspected before extraction, and an article never needs
+	// more than this.
+	maxBodyBytes = 10 << 20
 )
 
 // Page is the extracted content of one fetched URL.
@@ -41,6 +46,9 @@ type Page struct {
 // does not execute JavaScript: a page whose content is rendered client-side
 // yields an empty Page.Text, not an error — callers that need JS rendering
 // should use FetchWithFallback with a Renderer.
+//
+// A bot-management interstitial served in place of the page is refused with
+// a *ChallengeError rather than extracted as if it were the article.
 //
 // maxRunes caps how much text Page.Text holds; use Page.Paginate to walk the
 // rest instead of raising this without bound.
@@ -76,13 +84,18 @@ func fetchFull(ctx context.Context, rawURL string, parsed *url.URL, cache Cache)
 		}
 	}
 
-	body, err := httpGet(ctx, rawURL)
+	header, html, err := httpGet(ctx, rawURL)
 	if err != nil {
 		return nil, err
 	}
-	defer body.Close()
+	if provider, ok := detectChallenge(header, html); ok {
+		return nil, &ChallengeError{Provider: provider}
+	}
 
-	title, text := extract(body, parsed)
+	title, text := extractHTML(html, parsed)
+	if looksLikeInterstitial(title, text) {
+		return nil, &ChallengeError{Provider: "unknown"}
+	}
 	page := &Page{Title: title, Text: text}
 	if cache != nil {
 		cache.Set(rawURL, page)
@@ -90,35 +103,39 @@ func fetchFull(ctx context.Context, rawURL string, parsed *url.URL, cache Cache)
 	return page, nil
 }
 
-func httpGet(ctx context.Context, rawURL string) (io.ReadCloser, error) {
+func httpGet(ctx context.Context, rawURL string) (http.Header, string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
-		return nil, fmt.Errorf("build request: %w", err)
+		return nil, "", fmt.Errorf("build request: %w", err)
 	}
 	req.Header.Set("User-Agent", fetchUserAgent)
 	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
 
 	resp, err := httpClient(fetchTimeout).Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("fetch page: %w", err)
+		return nil, "", fmt.Errorf("fetch page: %w", err)
 	}
+	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		resp.Body.Close()
-		return nil, fmt.Errorf("fetch page: status %d", resp.StatusCode)
+		return nil, "", fmt.Errorf("fetch page: status %d", resp.StatusCode)
 	}
-	return resp.Body, nil
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBodyBytes))
+	if err != nil {
+		return nil, "", fmt.Errorf("fetch page: read body: %w", err)
+	}
+	return resp.Header, string(body), nil
 }
 
-// extract isolates the readability call: the library panics on malformed
+// extractHTML isolates the readability call: the library panics on malformed
 // DOMs and would otherwise take the whole caller down with it.
-func extract(body io.Reader, parsed *url.URL) (title, text string) {
+func extractHTML(html string, parsed *url.URL) (title, text string) {
 	defer func() {
 		if recover() != nil {
 			title, text = "", ""
 		}
 	}()
 
-	article, err := readability.FromReader(body, parsed)
+	article, err := readability.FromReader(strings.NewReader(html), parsed)
 	if err != nil {
 		return "", ""
 	}

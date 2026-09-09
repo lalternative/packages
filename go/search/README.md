@@ -101,6 +101,17 @@ a typo is loud at startup rather than a silent return to being blocked.
 `ProxyState` and `RedactProxySecrets` exist because the value carries
 credentials and upstream errors quote it back.
 
+When a publisher does answer but with a bot-management interstitial — a
+Cloudflare "Just a moment…", a DataDome captcha — the response is a 200 with a
+plausible title and a few sentences of text, which readability extracts like
+any other page. `FetchStatic` and `FetchWithFallback` recognise these (vendor
+fingerprints in headers and markup, or an interstitial title over almost no
+text) and refuse them with a `*ChallengeError` naming the provider, rather
+than handing back a page that would be stored and summarised as the article.
+`FetchWithFallback` still tries its `Renderer` on one, since a real browser
+sometimes clears what a plain GET cannot. A challenge is never cached, so the
+next call sees whether it has lifted.
+
 `rendersvc.Client` implements `Renderer` against a small standalone
 JavaScript-rendering service (a single `POST /render` endpoint backed by a
 headless browser). That service is not part of this module: it owns a
