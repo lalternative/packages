@@ -1,0 +1,31 @@
+# svcauth
+
+Verifies the bearer tokens a service receives against the identity providers
+it trusts. One verifier, several issuers: Ory Hydra for the suite (RS256), a
+Better Auth web app (EdDSA), or any other publisher of a JWKS.
+
+Module path: `github.com/lalternative/packages/go/svcauth`.
+
+```go
+v, err := svcauth.New([]svcauth.Issuer{
+    svcauth.Hydra("https://id.vvaves.dev", "tornade"),
+})
+mux.Handle("POST /speak", svcauth.Require(v)(handler))
+
+// or, when a route accepts more than one credential:
+if raw, ok := svcauth.BearerToken(r); ok {
+    claims, err := v.Verify(r.Context(), raw)
+    // claims.Subject, claims.ClientID, claims.HasScope("tornade:speak"), claims.HasRole("tornade:admin")
+}
+```
+
+A token is accepted when its `iss` names a configured issuer, its signature
+checks against that issuer's JWKS, it has not expired, and its `aud` meets one
+of the audiences declared for the issuer. An issuer declared without audiences
+accepts every token it signed. Only RS256 and EdDSA are honoured: `none` and
+HMAC over a public key are refused.
+
+Keys are fetched on first use and cached ten minutes. An unknown `kid`
+triggers one refresh, then a thirty-second cooldown, so a forged token cannot
+turn every request into a fetch. When the issuer cannot be reached, the cached
+keys keep serving.
