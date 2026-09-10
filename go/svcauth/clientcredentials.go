@@ -63,6 +63,9 @@ func (c *ClientCredentials) Token(ctx context.Context) (string, error) {
 	}
 	c.token = tok
 	c.expires = c.now().Add(ttl)
+	if ttl <= renewMargin {
+		c.expires = c.now()
+	}
 	return tok, nil
 }
 
@@ -110,11 +113,7 @@ func (c *ClientCredentials) fetch(ctx context.Context) (string, time.Duration, e
 	if resp.StatusCode != http.StatusOK || tr.AccessToken == "" {
 		return "", 0, fmt.Errorf("%w: %s %s", ErrTokenRefused, tr.Error, tr.Description)
 	}
-	ttl := time.Duration(tr.ExpiresIn) * time.Second
-	if ttl <= renewMargin {
-		ttl = renewMargin + time.Second
-	}
-	return tr.AccessToken, ttl, nil
+	return tr.AccessToken, time.Duration(tr.ExpiresIn) * time.Second, nil
 }
 
 // Authorize sets the bearer header on an outgoing request.
