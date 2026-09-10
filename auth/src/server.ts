@@ -1,7 +1,8 @@
 import { betterAuth, APIError, type Auth, type BetterAuthOptions } from "better-auth"
-import { emailOTP, admin, magicLink, twoFactor } from "better-auth/plugins"
+import { emailOTP, admin, magicLink, twoFactor, genericOAuth } from "better-auth/plugins"
 import type { PlatformAuthConfig, PlatformAuthMailerType } from "./types"
 import { withGoogleDefaults } from "./google-defaults"
+import { mapSsoProfile, type SsoProfile } from "./sso-profile"
 import { withSignUpName } from "./signup-name"
 import { resolveRateLimit } from "./rate-limit"
 
@@ -61,7 +62,9 @@ export function createPlatformAuth(
     rateLimit,
     twoFactor: twoFactorConfig,
     trustedOrigins,
+    sso,
   } = config
+  const ssoProviderId = sso?.providerId ?? "urbangate"
 
   const subjects = { ...DEFAULT_EMAIL_SUBJECTS, ...emailSubjects }
   const renderEmail = renderOtpEmail ?? defaultRenderOtpEmail
@@ -86,10 +89,13 @@ export function createPlatformAuth(
     // so signing in with Google/GitHub on an email already registered would fold
     // that identity into the existing account. We keep each sign-in method its
     // own account: a social login on a taken email is refused, not linked.
+    // The suite's own identity provider is the one exception: it verifies
+    // emails itself, and the same person must land on the same account
+    // whether they signed in here before the SSO existed or not.
     account: {
-      accountLinking: {
-        enabled: false,
-      },
+      accountLinking: sso
+        ? { enabled: true, trustedProviders: [ssoProviderId] }
+        : { enabled: false },
     },
     // Naming happens here rather than on /sign-up/email so that every way in
     // is covered: a magic link that signs up bypasses the endpoint entirely
@@ -192,6 +198,26 @@ export function createPlatformAuth(
           ]
         : []),
       admin(),
+      ...(sso
+        ? [
+            genericOAuth({
+              config: [
+                {
+                  providerId: ssoProviderId,
+                  discoveryUrl: `${sso.issuer.replace(/\/$/, "")}/.well-known/openid-configuration`,
+                  clientId: sso.clientId,
+                  clientSecret: sso.clientSecret,
+                  scopes: ["openid", "email", "profile", "offline_access"],
+                  pkce: true,
+                  overrideUserInfo: true,
+                  disableSignUp: sso.allowSignUp === false,
+                  mapProfileToUser: (profile) =>
+                    mapSsoProfile(profile as SsoProfile, sso.adminRole),
+                },
+              ],
+            }),
+          ]
+        : []),
       ...(twoFactorConfig?.enabled
         ? [
             twoFactor({
@@ -246,6 +272,9 @@ export {
   releaseInviteTokenCookie,
 } from "./invitation"
 export type { ClaimOutcome, ClaimInvitationOptions } from "./invitation"
+
+export { mapSsoProfile } from "./sso-profile"
+export type { SsoProfile, SsoMappedUser } from "./sso-profile"
 
 export { bootstrapFirstAdmin } from "./bootstrap-admin"
 export type {

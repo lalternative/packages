@@ -145,6 +145,29 @@ export interface PlatformTwoFactorConfig {
   skipVerificationOnEnable?: boolean
 }
 
+export interface PlatformSsoConfig {
+  /** The provider's issuer URL, e.g. https://id.urbangate.dev */
+  issuer: string
+  clientId: string
+  clientSecret: string
+  /** The roles-claim value that grants this app's admin role, e.g. "tornade:admin". */
+  adminRole: string
+  /** Better Auth provider id, in the callback path. Defaults to "urbangate". */
+  providerId?: string
+  /** Lets a first visit create the local user. Defaults to true. */
+  allowSignUp?: boolean
+}
+
+export interface SsoClientSurface {
+  signIn: {
+    oauth2(args: {
+      providerId: string
+      callbackURL?: string
+      errorCallbackURL?: string
+    }): Promise<AuthClientResult>
+  }
+}
+
 export interface PlatformAuthConfig {
   /** PostgreSQL connection pool or connection string */
   database: BetterAuthOptions["database"]
@@ -171,6 +194,12 @@ export interface PlatformAuthConfig {
   google?: SocialProviderOptions["google"]
   /** GitHub OAuth config (omit to disable). Passed to Better Auth as given. */
   github?: SocialProviderOptions["github"]
+  /**
+   * Single sign-on through the suite's identity provider (urbangate). Mounts
+   * an OIDC client; a person whose roles claim carries `adminRole` signs in
+   * as admin, anyone else as a plain user. Omit to leave it off.
+   */
+  sso?: PlatformSsoConfig
   /**
    * Override the OTP email subject line per verification type. Merged over
    * the platform defaults — provide only the keys you want to change. The

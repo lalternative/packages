@@ -20,6 +20,8 @@ const DEFAULT_LABELS: AdminLoginLabels = {
   notAnAdmin: "Ce compte n'est pas administrateur.",
 }
 
+const SSO_LABEL = "Se connecter avec L'Alternative Fabrique"
+
 /**
  * Dedicated admin sign-in. Same auth backend as the public login, but bounces
  * non-admins: after sign-in it re-fetches the profile, and if the account is
@@ -34,6 +36,7 @@ const DEFAULT_LABELS: AdminLoginLabels = {
  */
 export function AdminLoginForm({
   authClient,
+  sso,
   getProfile,
   onSuccess,
   title = "Connexion admin",
@@ -80,6 +83,36 @@ export function AdminLoginForm({
       <h1 className={FORM_TITLE}>{title}</h1>
       {subtitle ? <p className={FORM_SUBTITLE}>{subtitle}</p> : null}
 
+      {sso ? (
+        <div className={`mt-8 p-6 ${CARD}`}>
+          <button
+            type="button"
+            disabled={loading}
+            onClick={async () => {
+              setError(undefined)
+              setLoading(true)
+              try {
+                await sso.signIn()
+              } catch (err) {
+                setError(err instanceof Error ? err.message : t.signInFailed)
+                setLoading(false)
+              }
+            }}
+            className={BUTTON_PRIMARY}
+          >
+            {icon}
+            {sso.label ?? SSO_LABEL}
+          </button>
+        </div>
+      ) : null}
+
+      {sso?.only ? (
+        error ? (
+          <div role="alert" className={`mt-4 ${ALERT}`}>
+            {error}
+          </div>
+        ) : null
+      ) : (
       <form onSubmit={handleSubmit} className={`mt-8 space-y-5 p-6 ${CARD}`}>
         {error ? (
           <div role="alert" className={ALERT}>
@@ -122,6 +155,7 @@ export function AdminLoginForm({
           {loading ? t.submitting : t.submit}
         </button>
       </form>
+      )}
 
       {footer ? (
         <div className="mt-5 text-center text-sm text-muted-foreground">

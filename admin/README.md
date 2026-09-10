@@ -67,5 +67,9 @@ import {
 } from "@lalternative/admin"
 ```
 
+`AdminLoginForm` takes an optional `sso` prop: `{ signIn, label?, only? }`. With
+`only`, the email and password form is gone and the button to the suite's
+identity provider is the whole page.
+
 The route guard (`beforeLoad` + redirect) stays in the app — it is coupled to
 the app's router. `hasAdminFeatures(profile)` is the shared rule for it.
