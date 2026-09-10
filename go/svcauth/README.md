@@ -29,3 +29,17 @@ Keys are fetched on first use and cached ten minutes. An unknown `kid`
 triggers one refresh, then a thirty-second cooldown, so a forged token cannot
 turn every request into a fetch. When the issuer cannot be reached, the cached
 keys keep serving.
+
+## Obtaining a token
+
+The calling service side of the same exchange:
+
+```go
+cc := svcauth.HydraClientCredentials("https://id.vvaves.dev", clientID, clientSecret,
+    []string{"tornade"}, []string{"tornade:speak"})
+req, _ := http.NewRequestWithContext(ctx, http.MethodPost, tornadeURL+"/speak", body)
+if err := cc.Authorize(req); err != nil { /* the issuer refused or is unreachable */ }
+```
+
+`Token` fetches on first use and reuses the token until thirty seconds before
+it expires; `Authorize` sets the `Authorization: Bearer` header.
