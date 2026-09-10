@@ -31,6 +31,8 @@ export type {
   AuthClientDataResult,
   AdminClientSurface,
   AuthThemeProps,
+  PlatformSsoConfig,
+  SsoClientSurface,
   AuthNavProps,
   AuthInviteProps,
   LinkComponent,
@@ -84,3 +86,6 @@ export { AuthLink } from "./components/auth-link"
 // is exported here is what a page rendering InvitationNotice needs.
 export { isInvitationFailure } from "./invitation"
 export type { ClaimOutcome } from "./invitation"
+
+export { mapSsoProfile } from "./sso-profile"
+export type { SsoProfile, SsoMappedUser } from "./sso-profile"

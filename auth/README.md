@@ -36,6 +36,28 @@ export const authClient = createPlatformAuthClient({ baseURL })
 import { LoginForm, RegisterForm, SocialButtons, VerifyEmailForm, ForgotPasswordForm, ResetPasswordForm, AuthLayout, useSession, useLogout } from "@lalternative/auth"
 ```
 
+### Single sign-on (urbangate)
+
+Passing `sso` mounts an OIDC client of the suite's identity provider. A person
+whose `roles` claim carries `adminRole` signs in as admin, anyone else as a
+plain user, and the role is recomputed on every sign-in.
+
+```ts
+export const auth = createPlatformAuth({
+  // …
+  sso: {
+    issuer: "https://id.urbangate.dev",
+    clientId: "tornade-admin",
+    clientSecret: process.env.URBANGATE_CLIENT_SECRET!,
+    adminRole: "tornade:admin",
+  },
+})
+```
+
+The callback is `/api/auth/oauth2/callback/urbangate`; register it on the
+Hydra client. On the client, `authClient.signIn.oauth2({ providerId: "urbangate", callbackURL: "/admin" })`
+starts the redirect.
+
 ### Magic link
 
 Passwordless sign-in by emailed link. Off unless `magicLink` is passed — the

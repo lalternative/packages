@@ -17,6 +17,7 @@ export type {
   AccountsBulkResult,
   AccountsTableProps,
   AdminLoginFormProps,
+  AdminSsoOption,
   AdminLoginLabels,
   AdminSetupFormProps,
   AdminSetupLabels,

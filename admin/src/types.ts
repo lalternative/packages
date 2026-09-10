@@ -268,8 +268,19 @@ export interface AccountsTableProps {
   bulkActions?: AccountsBulkAction[]
 }
 
+export interface AdminSsoOption {
+  /** Starts the redirect to the identity provider. */
+  signIn: () => void | Promise<void>
+  /** Button label. Defaults to "Se connecter avec L'Alternative Fabrique". */
+  label?: string
+  /** Hides the email and password form, leaving the SSO button alone. */
+  only?: boolean
+}
+
 export interface AdminLoginFormProps {
   authClient: AdminAuthClient
+  /** Single sign-on through the suite's identity provider, when the app has one. */
+  sso?: AdminSsoOption
   /** Fetch the fresh profile after sign-in to check the admin role. */
   getProfile: () => Promise<UserProfile>
   /** Called once the user is confirmed admin (app navigates to /admin). */

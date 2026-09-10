@@ -4,12 +4,14 @@ import {
   adminClient,
   magicLinkClient,
   twoFactorClient,
+  genericOAuthClient,
 } from "better-auth/client/plugins"
 import type {
   AdminClientSurface,
   AuthClientSurface,
   MagicLinkClientSurface,
   PlatformAuthClientConfig,
+  SsoClientSurface,
   TwoFactorClientSurface,
 } from "./types"
 
@@ -30,13 +32,16 @@ import type {
  * back-office calling admin.listUsers() off it must not have to widen the type.
  */
 export type PlatformAuthClient = Omit<AuthClientSurface, "signIn" | "admin"> & {
-  signIn: AuthClientSurface["signIn"] & MagicLinkClientSurface["signIn"]
+  signIn: AuthClientSurface["signIn"] &
+    MagicLinkClientSurface["signIn"] &
+    SsoClientSurface["signIn"]
   admin: AdminClientSurface
   twoFactor: TwoFactorClientSurface
 } & Omit<
     ReturnType<typeof createAuthClient>,
     | keyof AuthClientSurface
     | keyof MagicLinkClientSurface
+    | keyof SsoClientSurface
     | "twoFactor"
   >
 
@@ -58,6 +63,7 @@ export function createPlatformAuthClient(
       magicLinkClient(),
       adminClient(),
       twoFactorClient(),
+      genericOAuthClient(),
       ...(config?.plugins ?? []),
     ],
   }) as unknown as PlatformAuthClient
